@@ -1,56 +1,58 @@
 # Architecture
 
-Cellscope is a single backend process with a file store for signatures and a relational database for compound, gene, and analysis-run records. The web client directories are reserved and do not yet serve an application.
-
 ```text
-frontend (reserved)
-    │
-    ▼
-FastAPI  app/main.py
-    │
-    ├── api/            HTTP routers
-    ├── services/       use-case orchestration and file lookup
-    ├── core/           preprocessing and analytical routines
-    ├── schemas/        request and response models
-    └── db/             SQLAlchemy models and sessions
-            │
-            ├── SQLite (default) or Postgres (Docker)
-            └── data/processed  tables and signature JSON
+Next.js frontend (app router, client components)
+        │  fetch, JSON  (NEXT_PUBLIC_API_BASE_URL)
+        ▼
+FastAPI  app/main.py  ── CORS, error handlers, OpenAPI
+        │
+        ├── api/          routers: health, compounds, genes, similarity, targets, moa, rescue, evaluation
+        ├── services/     use cases: load data + metadata, call core, build predictions, persist runs
+        ├── core/         pure scientific functions (NumPy / pandas / scikit-learn)
+        ├── data/         read + validate tables, ProfileStore (Parquet cache, consensus per context)
+        ├── schemas/      Pydantic models (Compound, GeneticPerturbation, Profile, Prediction, Evaluation, …)
+        └── db/           SQLAlchemy models
+                │
+                ├── PostgreSQL    metadata, dataset registry, analysis runs, predictions, evaluations
+                └── data/processed/profiles/*.parquet   high-dimensional feature matrices
 ```
 
-## Request path
+## Storage split
 
-1. A router validates the body with a Pydantic schema.
-2. The matching service loads processed data when the use case needs it.
-3. The service calls a function in `core/`.
-4. Similarity, target prioritization, mechanism inference, reversal, and evaluation raise `NotImplementedError`. The API returns HTTP 501 for those cases.
-5. A missing rescue reference signature returns HTTP 404 before scoring is attempted.
+| What | Where | Why |
+| --- | --- | --- |
+| Feature vectors (hundreds–thousands of columns) | Parquet | Columnar, compressed, fast to load into NumPy. Never in Postgres. |
+| Compound and genetic perturbation metadata, annotations | Postgres | Filtering, search, joins, pagination. |
+| Import provenance (`profile_datasets`) | Postgres | Source path, feature hash, contexts per imported file. |
+| Analysis runs and predictions | Postgres | Reproducibility; each analysis response carries a `run_id`. |
+| Evaluation metrics | Postgres | Written by `app.pipeline.evaluate_moa`, read by `GET /api/evaluation`. |
 
-## Modules
+## Request path (analysis endpoints)
 
-| Path | Responsibility |
-| --- | --- |
-| `app/main.py` | Application, router mounting, 501 handler |
-| `app/config.py` | Environment-backed paths and database URL |
-| `app/api/compounds.py` | List and fetch compounds |
-| `app/api/genes.py` | List and fetch genes |
-| `app/api/mechanisms.py` | Mechanism inference requests |
-| `app/api/rescue.py` | Rescue scoring requests |
-| `app/api/evaluation.py` | Evaluation requests |
-| `app/core/preprocessing.py` | Signature cleanup |
-| `app/core/similarity.py` | Signature similarity |
-| `app/core/target_prioritization.py` | Target ranking |
-| `app/core/moa_inference.py` | Mechanism labels |
-| `app/core/reversal.py` | Reversal score |
-| `app/core/evaluation.py` | Benchmark metrics |
-| `app/services/data_loader.py` | Processed tables and signature files |
-| `app/services/compound_service.py` | Compound queries |
-| `app/services/analysis_service.py` | Analysis use cases |
-| `app/db/models.py` | `compounds`, `genes`, `analysis_runs` |
-| `app/db/session.py` | Engine, session, schema creation |
+1. The router validates the body (Pydantic) and injects `Settings`, a DB session, and the `ProfileStore`.
+2. The service asks the store for **consensus profiles** of the requested context (cell line, timepoint). The store loads the Parquet file once (re-loaded when its mtime changes), filters, and aggregates replicates by `perturbation_id` (median by default). Missing files raise `DataNotLoadedError` → 503.
+3. The service checks feature compatibility across datasets (→ 409), loads annotations from Postgres, and calls a `core/` function.
+4. Results become `Prediction` objects with `supporting_evidence`, wrapped in an `AnalysisResponse`, and persisted when `PERSIST_ANALYSIS_RUNS=true`. Persistence failure never fails the request.
 
-Startup calls `init_db()`, which creates tables if they are missing. Compound and gene endpoints currently read processed files. The tables are the place to persist imported records and analysis runs.
+## Errors
+
+All application errors share one body: `{"error": code, "message": text, "details": {...}}`.
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `data_not_loaded` | 503 | A profile file or metadata table the request needs is empty/missing. `details.missing_datasets`, `details.hint`. |
+| `database_unavailable` | 503 | Postgres unreachable or tables missing. |
+| `invalid_query` | 400 | e.g. no profiles in the requested context (lists `available_contexts`), ambiguous context, `top_k` above `MAX_TOP_K`, zero-norm signature. |
+| `not_found` | 404 | Unknown compound / gene / perturbation. |
+| `feature_mismatch` | 409 | Profile datasets do not share the same feature columns. |
+| `profile_validation_failed` | 422 | Import-time validation report. |
+
+FastAPI's own 422 is returned for malformed request bodies.
 
 ## Configuration
 
-`app/config.py` resolves `cellscope/` from the package location. `DATABASE_URL`, `DATA_RAW_DIR`, and `DATA_PROCESSED_DIR` override the defaults. Relative paths in those variables are resolved from `cellscope/`.
+`app/config.py` (pydantic-settings) reads environment variables and `vectora-bio/.env`. See `.env.example` for every setting. `get_settings()`, `get_engine()` and `get_profile_store()` are cached factories so tests can swap configuration by clearing them.
+
+## Testing
+
+`backend/tests` runs against a per-test SQLite database and a temporary data directory populated with synthetic profiles (`tests/synthetic.py`, arbitrary geometry and placeholder labels). Coverage: core math, validation, import pipeline (CLI included), every endpoint in both the no-data and loaded states, and the DB-unavailable path. Frontend: `vitest` covers the API client and formatting helpers.

@@ -1,61 +1,117 @@
-# Cellscope
+# Vectora Bio
 
-Cellscope is a local application for comparing compound and gene signatures, prioritizing targets, inferring mechanisms, scoring transcriptional rescue, and evaluating those results.
+Vectora Bio analyzes high-dimensional cellular phenotypic profiles (e.g. processed JUMP Cell Painting data) from chemical and genetic perturbation experiments to support computational drug discovery.
 
-The analytical routines are explicit placeholders. Data loading, the HTTP API, and the database schema are in place so those routines can be added without rearranging the project.
+| Capability | API | Status |
+| --- | --- | --- |
+| Compound-to-compound phenotypic similarity | `POST /api/similarity/compounds` | Cosine similarity of consensus profiles |
+| Compound-to-gene matching, target prioritization | `POST /api/targets/prioritize` | Cosine / \|cosine\| matching, max per gene |
+| Similarity-based MoA inference | `POST /api/moa/infer` | Similarity-weighted kNN vote |
+| Phenotypic rescue / perturbation reversal | `POST /api/rescue/search` | Negative cosine vs. control-subtracted signature |
+| Model evaluation | `GET /api/evaluation` + `python -m app.pipeline.evaluate_moa` | Leave-one-out MoA + retrieval metrics |
+
+These are baseline methods, not tuned models. No endpoint returns placeholder results: when the data a request needs has not been imported, it returns **HTTP 503** with `error: "data_not_loaded"` and the list of missing datasets.
 
 ## Layout
 
 ```text
-cellscope/
-├── data/                 # raw inputs and processed tables
-├── notebooks/            # exploratory analysis
-├── backend/              # FastAPI application
-├── frontend/             # web client (directories reserved)
-└── docs/                 # architecture, data dictionary, methodology
+vectora-bio/
+├── backend/
+│   ├── app/
+│   │   ├── api/         one FastAPI router per capability
+│   │   ├── core/        scientific functions (pure NumPy/pandas, no I/O)
+│   │   ├── data/        profile loading, validation, consensus, Parquet store
+│   │   ├── db/          SQLAlchemy models and sessions (PostgreSQL)
+│   │   ├── pipeline/    CLI: import profiles/metadata, run evaluation
+│   │   ├── schemas/     Pydantic request/response models
+│   │   └── services/    use cases joining data, DB, and core
+│   ├── config/          example column maps for JUMP files
+│   └── tests/           pytest suite (synthetic data only)
+├── frontend/            Next.js App Router + TypeScript + Tailwind + Recharts
+├── data/                raw/ and processed/ (gitignored payloads)
+├── docs/                architecture, data dictionary, methodology
+├── scripts/             setup_postgres.sql
+└── docker-compose.yml   optional Postgres + API stack
 ```
 
 ## Requirements
 
-- Python 3.12
-- Optional: Docker, for Postgres
+- Python 3.11+
+- Node.js 20.9+
+- PostgreSQL 14+ (local install or `docker compose up db`)
 
-The API uses a local SQLite file by default (`backend/cellscope.db`).
+## 1. Database
 
-## Run the API
-
-From `cellscope/backend`:
+Create a role and database once (as a Postgres superuser), then put the URL in `vectora-bio/.env`:
 
 ```powershell
+psql -U postgres -h localhost -f scripts/setup_postgres.sql
+copy .env.example .env   # then edit DATABASE_URL / password
+```
+
+Tables are created by the app on startup, or explicitly:
+
+```powershell
+cd backend
+python -m app.db.init_db
+```
+
+## 2. Backend
+
+```powershell
+cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000/docs`.
+Interactive API docs: http://127.0.0.1:8000/docs. If Postgres is unreachable the API still starts; `/api/health` reports `degraded` and DB-backed endpoints return 503 `database_unavailable`.
 
-Copy `.env.example` to `.env` in this directory when you want to override the defaults. Settings are read from the environment and from `cellscope/.env`.
-
-## Run with Docker
-
-From `cellscope`:
+Tests use a temporary SQLite database and synthetic profiles, so they need no Postgres or downloads:
 
 ```powershell
-docker compose up
+python -m pytest
+ruff check app tests
 ```
 
-The API is published on port 8000 and Postgres on port 5432. The database credentials in `docker-compose.yml` are for this local stack only.
+## 3. Import data
 
-## HTTP API
+The JUMP dataset is **not** downloaded automatically. Download the processed profiles and metadata you need into `data/raw/`, then import. See [docs/data_dictionary.md](docs/data_dictionary.md) for the canonical columns.
 
-| Method | Path | Behavior |
-| --- | --- | --- |
-| `GET` | `/health` | Service status |
-| `GET` | `/api/compounds` | Compounds from `data/processed/compounds.csv` or `.parquet` |
-| `GET` | `/api/genes` | Genes from `data/processed/genes.csv` or `.parquet` |
-| `POST` | `/api/mechanisms` | Mechanism inference (not implemented) |
-| `POST` | `/api/rescue` | Rescue scoring against a stored reference signature |
-| `POST` | `/api/evaluation` | Evaluation (not implemented) |
+```powershell
+cd backend
+# Profiles -> data/processed/profiles/*.parquet (validated, feature-checked, registered in the DB)
+python -m app.pipeline.import_profiles --input ..\data\raw\compound_profiles.parquet --profile-type compound `
+  --column-map config\jump_column_map.example.json --set cell_line=U2OS --set timepoint=48 `
+  --profile-id-columns Metadata_Source Metadata_Plate Metadata_Well --missing drop-features
 
-Processed-file columns and the signature JSON shape are described in [docs/data_dictionary.md](docs/data_dictionary.md).
+python -m app.pipeline.import_profiles --input ..\data\raw\crispr_profiles.parquet --profile-type genetic ...
+python -m app.pipeline.import_profiles --input ..\data\raw\control_profiles.parquet --profile-type control ...
+
+# Metadata -> PostgreSQL
+python -m app.pipeline.import_metadata compounds --input ..\data\raw\compounds_annotated.csv `
+  --column-map config\compound_metadata_map.example.json --set cell_line=U2OS --set timepoint=48
+python -m app.pipeline.import_metadata genetic --input ..\data\raw\crispr.csv.gz `
+  --column-map config\genetic_metadata_map.example.json --set perturbation_type=crispr --set cell_line=U2OS --set timepoint=96
+
+# Evaluation (stores metrics shown at /api/evaluation)
+python -m app.pipeline.evaluate_moa --cell-line U2OS --timepoint 48
+```
+
+Every command accepts `--help` and `--dry-run` (except evaluation). Validation errors are printed with examples of the offending rows or columns.
+
+## 4. Frontend
+
+```powershell
+cd frontend
+copy .env.example .env.local
+npm install
+npm run dev        # http://localhost:3000
+npm run typecheck
+npm test
+```
+
+## Docker (optional)
+
+`docker compose up` starts Postgres (host port 5433) and the API (port 8000) with `./data` mounted.

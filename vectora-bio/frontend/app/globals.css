@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --bg: #f6f6f4;
+  --surface: #fcfcfb;
+  --surface-2: #f0f0ed;
+  --line: #e2e1dc;
+  --ink: #161614;
+  --ink-2: #52514e;
+  --ink-3: #7a7974;
+  --accent: #1f6fc5;
+  --accent-soft: #e6effa;
+  --series-1: #2a78d6;
+  --grid: #e7e6e1;
+  --ok: #157f3b;
+  --ok-soft: #e5f4ea;
+  --warn: #8a5a00;
+  --warn-soft: #fdf3dc;
+  --warn-line: #f0d48f;
+  --danger: #b4232a;
+  --danger-soft: #fbe9e9;
+  --danger-line: #f1b9bb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --line: #33332f;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --ink-3: #8f8e86;
+    --accent: #6aa8ef;
+    --accent-soft: #1d2a3b;
+    --series-1: #3987e5;
+    --grid: #2b2b28;
+    --ok: #5cc483;
+    --ok-soft: #17291e;
+    --warn: #e8b64a;
+    --warn-soft: #2c2412;
+    --warn-line: #5a4718;
+    --danger: #f08a8d;
+    --danger-soft: #2f1718;
+    --danger-line: #5c2a2c;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --line: #33332f;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --ink-3: #8f8e86;
+  --accent: #6aa8ef;
+  --accent-soft: #1d2a3b;
+  --series-1: #3987e5;
+  --grid: #2b2b28;
+  --ok: #5cc483;
+  --ok-soft: #17291e;
+  --warn: #e8b64a;
+  --warn-soft: #2c2412;
+  --warn-line: #5a4718;
+  --danger: #f08a8d;
+  --danger-soft: #2f1718;
+  --danger-line: #5c2a2c;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-line);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-line: var(--danger-line);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

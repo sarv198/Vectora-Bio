@@ -1,1 +1,1 @@
-"""Cellscope backend application."""
+"""Vectora Bio backend application."""

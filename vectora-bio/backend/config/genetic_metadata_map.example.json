@@ -1,0 +1,6 @@
+{
+  "_comment": "For JUMP crispr.csv.gz / orf.csv.gz metadata. Pass perturbation_type, cell_line and timepoint with --set.",
+  "Metadata_JCP2022": "perturbation_id",
+  "Metadata_NCBI_Gene_ID": "gene_id",
+  "Metadata_Symbol": "gene_symbol"
+}

@@ -1,0 +1,7 @@
+{
+  "_comment": "For a compound table you have joined with annotations (e.g. JUMP compound.csv.gz + Drug Repurposing Hub on InChIKey). Left side = your column names.",
+  "Metadata_JCP2022": "compound_id",
+  "pert_iname": "compound_name",
+  "moa": "moa",
+  "target": "known_target"
+}

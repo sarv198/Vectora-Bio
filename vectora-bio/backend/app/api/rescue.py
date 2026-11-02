@@ -1,25 +1,15 @@
-"""Rescue scoring endpoints."""
+"""Phenotypic rescue / perturbation reversal search."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from app.schemas.prediction import RescueRequest, ReversalScore
+from app.api.deps import DbSession, SettingsDep, StoreDep
+from app.schemas.common import ANALYSIS_ERROR_RESPONSES
+from app.schemas.prediction import AnalysisResponse, RescueSearchRequest
 from app.services import analysis_service
 
-router = APIRouter()
+router = APIRouter(responses=ANALYSIS_ERROR_RESPONSES)
 
 
-@router.post("", response_model=ReversalScore)
-def score_rescue(body: RescueRequest) -> ReversalScore:
-    try:
-        return analysis_service.score_rescue(
-            body.values,
-            reference_id=body.reference_id,
-            query_id=body.query_id,
-        )
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Reference signature '{body.reference_id}' was not found",
-        ) from None
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+@router.post("/search", response_model=AnalysisResponse, summary="Rank compounds that oppose a perturbation phenotype")
+def search_rescue(body: RescueSearchRequest, db: DbSession, settings: SettingsDep, store: StoreDep) -> AnalysisResponse:
+    return analysis_service.search_rescue(body, store=store, db=db, settings=settings)

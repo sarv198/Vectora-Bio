@@ -1,0 +1,4 @@
+{
+  "_comment": "Maps JUMP profile metadata columns to Vectora canonical columns. Verify column names against the files you downloaded. cell_line and timepoint are usually not in the profile files; pass them with --set.",
+  "Metadata_JCP2022": "perturbation_id"
+}

@@ -2,29 +2,30 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-cellscope}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cellscope}
-      POSTGRES_DB: ${POSTGRES_DB:-cellscope}
+      POSTGRES_USER: ${POSTGRES_USER:-vectora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vectora}
+      POSTGRES_DB: ${POSTGRES_DB:-vectora}
     ports:
-      - "5432:5432"
+      - "5433:5432"  # 5433 on the host so it does not clash with a locally installed Postgres
     volumes:
-      - cellscope_pg:/var/lib/postgresql/data
+      - vectora_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cellscope} -d ${POSTGRES_DB:-cellscope}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vectora} -d ${POSTGRES_DB:-vectora}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   api:
-    image: python:3.12-slim
+    image: python:3.11-slim
     working_dir: /app
     command: >
       sh -c "pip install --no-cache-dir -r requirements.txt
       && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cellscope}:${POSTGRES_PASSWORD:-cellscope}@db:5432/${POSTGRES_DB:-cellscope}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vectora}:${POSTGRES_PASSWORD:-vectora}@db:5432/${POSTGRES_DB:-vectora}
       DATA_RAW_DIR: /data/raw
       DATA_PROCESSED_DIR: /data/processed
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     ports:
       - "8000:8000"
     volumes:
@@ -35,4 +36,4 @@ services:
         condition: service_healthy
 
 volumes:
-  cellscope_pg:
+  vectora_pg:

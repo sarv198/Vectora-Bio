@@ -10,19 +10,25 @@ venv/
 
 # Local databases and secrets
 .env
+.env.local
 *.db
 
-# Node
+# Node / Next.js
 node_modules/
 .next/
 dist/
 out/
+next-env.d.ts
+*.tsbuildinfo
 
 # Notebooks
 .ipynb_checkpoints/
 
-# Local data payloads
+# Local data payloads (never commit profiles or raw downloads)
 data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+*.parquet
+*.csv.gz
+*.tsv.gz
