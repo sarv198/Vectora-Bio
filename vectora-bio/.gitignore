@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local databases and secrets
+.env
+*.db
+
+# Node
+node_modules/
+.next/
+dist/
+out/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Local data payloads
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep

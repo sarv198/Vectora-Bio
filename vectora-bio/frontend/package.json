@@ -1,0 +1,10 @@
+{
+  "name": "cellscope-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cellscope web client. Source belongs in app/, components/, and lib/.",
+  "scripts": {
+    "dev": "echo \"Frontend entrypoint is not set up yet.\" && exit 1",
+    "build": "echo \"Frontend entrypoint is not set up yet.\" && exit 1"
+  }
+}

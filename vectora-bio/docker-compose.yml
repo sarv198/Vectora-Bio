@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cellscope}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cellscope}
+      POSTGRES_DB: ${POSTGRES_DB:-cellscope}
+    ports:
+      - "5432:5432"
+    volumes:
+      - cellscope_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cellscope} -d ${POSTGRES_DB:-cellscope}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: python:3.12-slim
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt
+      && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cellscope}:${POSTGRES_PASSWORD:-cellscope}@db:5432/${POSTGRES_DB:-cellscope}
+      DATA_RAW_DIR: /data/raw
+      DATA_PROCESSED_DIR: /data/processed
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  cellscope_pg:
