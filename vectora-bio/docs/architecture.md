@@ -10,6 +10,7 @@ FastAPI  app/main.py  ── CORS, error handlers, OpenAPI
         ├── services/     use cases: load data + metadata, call core, build predictions, persist runs
         ├── core/         pure scientific functions (NumPy / pandas / scikit-learn)
         ├── data/         read + validate tables, ProfileStore (Parquet cache, consensus per context)
+        ├── preprocessing/ Phase 1 build: plate selection, control normalization, feature selection, aggregation
         ├── schemas/      Pydantic models (Compound, GeneticPerturbation, Profile, Prediction, Evaluation, …)
         └── db/           SQLAlchemy models
                 │

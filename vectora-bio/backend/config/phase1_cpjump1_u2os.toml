@@ -1,0 +1,56 @@
+# Phase 1 build: JUMP Cell Painting pilot (cpg0000-jump-pilot, batch 2020_11_04_CPJUMP1), U2OS.
+# Paths are relative to vectora-bio/ unless absolute.
+#
+#   python -m app.pipeline.download_cpjump1 --config config/phase1_cpjump1_u2os.toml --dry-run
+#   python -m app.pipeline.download_cpjump1 --config config/phase1_cpjump1_u2os.toml
+#   python -m app.pipeline.build_profiles   --config config/phase1_cpjump1_u2os.toml --load-db
+
+[source]
+name = "cpjump1_u2os"
+batch = "2020_11_04_CPJUMP1"
+raw_dir = "data/raw/cpjump1"
+profile_suffix = "augmented"   # un-normalized well-level profiles; this pipeline normalizes them
+
+[selection]
+cell_type = "U2OS"
+density = 100
+antibiotics = "absent"
+exclude_anomalies = []          # e.g. ["Mitotracker"] to skip plates flagged in experiment-metadata.tsv
+
+# The pilot has no timepoint shared by all three modalities (compound 24/48 h, ORF 48/96 h,
+# CRISPR 96/144 h in U2OS). Compound and ORF share 48 h; CRISPR needs longer for knockout.
+[selection.timepoints]
+compound = 48
+orf = 48
+crispr = 144
+
+[normalization]
+method = "mad_robustize"        # (x - median) / MAD of the reference wells on the same plate
+reference = "negcon"            # matched negative controls: DMSO, non-targeting/intergenic guides, negcon ORFs
+
+[feature_selection]
+drop_missing = true
+variance_freq_cut = 0.05
+variance_unique_cut = 0.01
+correlation_threshold = 0.9
+
+[aggregation]
+method = "median"
+min_replicates = 2
+
+[annotations]
+# MoA annotations are not part of the pilot metadata. Point this at e.g. the Drug Repurposing Hub
+# drug annotation file to fill compound `moa` (joined on pert_iname, case-insensitive).
+# moa_file = "data/raw/annotations/repurposing_drugs.txt"
+moa_key_column = "pert_iname"
+moa_match_on = "pert_iname"
+moa_column = "moa"
+moa_comment_prefix = "!"
+# Optional symbol -> stable gene id table (e.g. HGNC export). Without it gene_id = gene symbol.
+# gene_id_file = "data/raw/annotations/hgnc_complete_set.txt"
+gene_symbol_column = "symbol"
+gene_id_column = "entrez_id"
+
+[output]
+save_well_level = true
+load_database = false            # or pass --load-db

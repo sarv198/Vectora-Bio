@@ -1,8 +1,34 @@
 # Data dictionary
 
+## Phase 1 build outputs
+
+Written by `python -m app.pipeline.build_profiles` under `data/processed/`. All profile files share one feature set (`build/selected_features.txt`).
+
+| File | One row per | Contents |
+| --- | --- | --- |
+| `profiles/compound_profiles.parquet` | compound × context | Consensus (median) of the compound's wells across plates. Includes positive-control compounds. |
+| `profiles/genetic_profiles.parquet` | genetic reagent × context | One CRISPR guide or ORF construct. Gene-level aggregation happens at query time. |
+| `profiles/control_profiles.parquet` | negative-control reagent × context | DMSO; each non-targeting/intergenic guide; each negative-control ORF. |
+| `metadata/compound_metadata.parquet` | compound | `compound_id`, `compound_name` (pert_iname), `moa` (only from a configured MoA file), `known_target` (source `target_list`), `cell_line`, `timepoint`, `replicate_count`, `inchikey`, `primary_target`, `control_type`, `replicate_cosine`. |
+| `metadata/genetic_metadata.parquet` | genetic reagent | `perturbation_id`, `gene_id` (from a gene-id file, else the symbol), `gene_symbol`, `perturbation_type` (`crispr`/`orf`), `cell_line`, `timepoint`, `control_type`, `replicate_count`, `replicate_cosine`. |
+| `wells/{compound,genetic,control}_wells.parquet` | well | Normalized, feature-selected well-level profiles (for QC and later evaluation). |
+| `build/manifest.json` | build | Config, plates with reference-well counts, input SHA-256 checksums, feature-selection counts, annotation coverage, warnings. |
+
+Extra profile columns written by the build:
+
+| Column | Meaning |
+| --- | --- |
+| `Metadata_modality` | `compound`, `crispr` or `orf`. Matched controls are looked up by cell line, timepoint **and** modality. |
+| `Metadata_n_replicates`, `Metadata_n_plates` | Wells and plates behind the consensus. |
+| `Metadata_replicate_cosine` | Mean pairwise cosine between replicate wells (reproducibility; NaN for a single well). |
+| `Metadata_control_type` | Source label: empty for treatments, `poscon_*` for positive controls, `negcon` for controls. |
+| `Metadata_broad_sample`, `Metadata_pert_iname`, `Metadata_InChIKey`, `Metadata_gene` | Source identifiers. |
+
+`profile_id` is `<perturbation_id>:<cell_line>:<timepoint>h`.
+
 ## Profile files (Parquet)
 
-Written by `app.pipeline.import_profiles` to `data/processed/profiles/`:
+Written by the Phase 1 build (above) or by `app.pipeline.import_profiles` to `data/processed/profiles/`:
 
 | File | `profile_type` |
 | --- | --- |
@@ -29,7 +55,7 @@ One row per profile (typically one well). Columns:
 - `profile_id` unique.
 - At least one feature; all features numeric.
 - No missing or infinite feature values (choose `--missing drop-features` or `drop-rows` to clean instead).
-- No all-zero profiles (cosine undefined).
+- No all-zero profiles (cosine undefined). For control profiles this is only a warning: after normalizing to controls, a control consensus can be exactly zero, and controls are subtracted, never cosine-compared.
 - Feature set identical to any already-imported profile type (use `--feature-list` to restrict every dataset to a shared list). Warning only: constant features.
 
 ### Consensus profiles

@@ -226,24 +226,27 @@ def import_profiles(
 
     write_parquet_atomic(output, output_path)
     if register:
-        summary.registered = _register_dataset(summary, features, output)
+        summary.registered = register_dataset(
+            summary.profile_type, summary.output_path, summary.source_path, output, features
+        )
         if not summary.registered:
             summary.warnings.append("Profiles were written but could not be registered in the database.")
     return summary
 
 
-def _register_dataset(summary: ImportSummary, features: list[str], frame: pd.DataFrame) -> bool:
+def register_dataset(
+    profile_type: str, output_path: str, source_path: str, frame: pd.DataFrame, features: list[str]
+) -> bool:
+    """Record (or update) the provenance row for one profile type. Returns False if the database is unusable."""
     try:
         init_db()
         with get_session_factory()() as db:
-            record = db.scalar(
-                select(ProfileDatasetRecord).where(ProfileDatasetRecord.profile_type == summary.profile_type)
-            )
-            record = record or ProfileDatasetRecord(profile_type=summary.profile_type)
-            record.file_path = summary.output_path
-            record.source_path = summary.source_path
-            record.n_profiles = summary.n_profiles
-            record.n_features = summary.n_features
+            record = db.scalar(select(ProfileDatasetRecord).where(ProfileDatasetRecord.profile_type == profile_type))
+            record = record or ProfileDatasetRecord(profile_type=profile_type)
+            record.file_path = output_path
+            record.source_path = source_path
+            record.n_profiles = len(frame)
+            record.n_features = len(features)
             record.feature_hash = feature_hash(features)
             record.cell_lines = sorted(frame["cell_line"].astype(str).unique().tolist())
             record.timepoints = sorted(float(t) for t in frame["timepoint"].unique())

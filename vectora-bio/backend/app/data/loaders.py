@@ -17,6 +17,7 @@ import pandas as pd
 from app.errors import ProfileValidationError
 from app.schemas.common import EXTRA_METADATA_PREFIX, PROFILE_METADATA_COLUMNS, ProfileType
 
+REPLICATE_COUNT_COLUMN = "Metadata_n_replicates"
 SUPPORTED_SUFFIXES = (".parquet", ".pq", ".csv", ".csv.gz", ".tsv", ".tsv.gz")
 _ISSUE_PREVIEW = 10
 
@@ -104,7 +105,7 @@ def validate_profile_table(
     non-numeric timepoints, unexpected profile types, duplicate profile ids,
     no features, non-numeric features, missing or non-finite feature values,
     and zero-norm profiles (cosine similarity is undefined for them).
-    Warnings: constant features.
+    Warnings: constant features, and zero-norm profiles when validating control profiles.
     """
     features = identify_feature_columns(frame)
     report = ValidationReport(n_rows=len(frame), n_features=len(features))
@@ -219,8 +220,11 @@ def validate_profile_table(
     zero_norm = np.linalg.norm(finite_values, axis=1) == 0
     if zero_norm.any():
         ids = frame["profile_id"] if "profile_id" in frame.columns else pd.Series(frame.index)
+        # Control consensus profiles can legitimately be ~0 after normalizing to controls; they are
+        # subtracted, never compared by cosine, so this is only a warning for them.
+        is_control = expected_profile_type is not None and ProfileType(expected_profile_type) == ProfileType.CONTROL
         report.add(
-            "error",
+            "warning" if is_control else "error",
             "zero_norm_profiles",
             f"{int(zero_norm.sum())} profile(s) have an all-zero feature vector.",
             ids.to_numpy()[zero_norm],
@@ -359,6 +363,9 @@ def build_consensus_profiles(
         timepoint=("timepoint", "first"),
         replicate_count=("profile_id", "size"),
     )
+    if REPLICATE_COUNT_COLUMN in frame.columns:
+        # Rows are already consensus profiles (e.g. from the build pipeline); count the wells behind them.
+        context["replicate_count"] = grouped[REPLICATE_COUNT_COLUMN].sum().astype(int)
     consensus.index = consensus.index.astype(str)
     context.index = context.index.astype(str)
     return ConsensusProfiles(features=consensus.astype(np.float64), context=context)

@@ -22,6 +22,8 @@ from app.errors import DataNotLoadedError, InvalidQueryError
 from app.schemas.common import ProfileType
 from app.schemas.profile import DatasetStatus
 
+MODALITY_COLUMN = "Metadata_modality"
+
 
 def dataset_name(profile_type: ProfileType) -> str:
     return f"{profile_type.value}_profiles"
@@ -124,14 +126,31 @@ class ProfileStore:
             self._consensus[key] = consensus
         return consensus
 
-    def control_consensus(self, cell_line: str, timepoint: float) -> pd.Series:
-        """Median of all matched control profiles for one context, as a single vector."""
+    def modality(self, profile_type: ProfileType, perturbation_id: str) -> str | None:
+        """``Metadata_modality`` of a perturbation (compound / crispr / orf), if the file records it."""
+        frame = self.load(profile_type)
+        if MODALITY_COLUMN not in frame.columns:
+            return None
+        values = frame.loc[frame["perturbation_id"] == perturbation_id, MODALITY_COLUMN].dropna()
+        return str(values.iloc[0]) if len(values) else None
+
+    def control_consensus(self, cell_line: str, timepoint: float, modality: str | None = None) -> pd.Series:
+        """Median of the matched control profiles for one context, as a single vector.
+
+        Controls are matched on cell line, timepoint and, when the control file records it,
+        modality: DMSO for compounds, negative-control guides for CRISPR, negative-control ORFs for ORF.
+        """
         frame = self.load(ProfileType.CONTROL)
         subset = filter_profiles(frame, cell_line=cell_line, timepoint=timepoint)
+        if modality is not None and MODALITY_COLUMN in subset.columns:
+            subset = subset[subset[MODALITY_COLUMN] == modality]
         if subset.empty:
             raise DataNotLoadedError(
                 ["control_profiles"],
-                message=f"No matched control profiles for cell_line={cell_line!r}, timepoint={timepoint!r}.",
+                message=(
+                    f"No matched control profiles for cell_line={cell_line!r}, timepoint={timepoint!r}"
+                    + (f", modality={modality!r}." if modality else ".")
+                ),
                 hint="Import control profiles for this context or set subtract_matched_controls=false.",
             )
         features = identify_feature_columns(frame)

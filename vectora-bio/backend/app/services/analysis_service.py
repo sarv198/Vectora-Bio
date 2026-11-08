@@ -349,7 +349,10 @@ def search_rescue(
             raise NotFoundError(f"No genetic profile for perturbation '{request.perturbation_id}' in this context.")
         signature = genetic.features.loc[request.perturbation_id]
         if request.subtract_matched_controls:
-            signature = signature - store.control_consensus(*_query_context(genetic, request.perturbation_id))
+            signature = signature - store.control_consensus(
+                *_query_context(genetic, request.perturbation_id),
+                modality=store.modality(ProfileType.GENETIC, request.perturbation_id),
+            )
         query_id = request.perturbation_id
     else:
         signature = pd.Series(request.signature, dtype=np.float64)
@@ -365,7 +368,7 @@ def search_rescue(
         )
         compound_features = compound_features.copy()
         for (cell_line, timepoint), ids in compounds.context.groupby(["cell_line", "timepoint"]).groups.items():
-            control = store.control_consensus(str(cell_line), float(timepoint))
+            control = store.control_consensus(str(cell_line), float(timepoint), modality="compound")
             compound_features.loc[ids] = compound_features.loc[ids] - control[compound_features.columns]
 
     try:

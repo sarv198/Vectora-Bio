@@ -22,7 +22,8 @@ vectora-bio/
 │   │   ├── core/        scientific functions (pure NumPy/pandas, no I/O)
 │   │   ├── data/        profile loading, validation, consensus, Parquet store
 │   │   ├── db/          SQLAlchemy models and sessions (PostgreSQL)
-│   │   ├── pipeline/    CLI: import profiles/metadata, run evaluation
+│   │   ├── preprocessing/ Phase 1: raw plates -> normalized consensus profiles
+│   │   ├── pipeline/    CLI: download, build, import profiles/metadata, run evaluation
 │   │   ├── schemas/     Pydantic request/response models
 │   │   └── services/    use cases joining data, DB, and core
 │   ├── config/          example column maps for JUMP files
@@ -75,9 +76,22 @@ python -m pytest
 ruff check app tests
 ```
 
-## 3. Import data
+## 3. Build data (Phase 1: JUMP pilot)
 
-The JUMP dataset is **not** downloaded automatically. Download the processed profiles and metadata you need into `data/raw/`, then import. See [docs/data_dictionary.md](docs/data_dictionary.md) for the canonical columns.
+Nothing is downloaded until you run the download command, and it fetches only the plates your config selects. [`backend/config/phase1_cpjump1_u2os.toml`](backend/config/phase1_cpjump1_u2os.toml) selects 10 U2OS plates (~71 MB) from the JUMP Cell Painting pilot (`cpg0000-jump-pilot`, batch `2020_11_04_CPJUMP1`): 4 compound plates at 48 h, 2 ORF plates at 48 h and 4 CRISPR plates at 144 h.
+
+```powershell
+cd backend
+python -m app.pipeline.download_cpjump1 --config config\phase1_cpjump1_u2os.toml --dry-run   # list plates and sizes
+python -m app.pipeline.download_cpjump1 --config config\phase1_cpjump1_u2os.toml             # -> data/raw/cpjump1/
+python -m app.pipeline.build_profiles   --config config\phase1_cpjump1_u2os.toml --load-db  # -> data/processed/ + Postgres
+```
+
+The build selects plates, separates compounds / genetic reagents / negative controls, normalizes every plate to its own negative controls, selects one shared feature set, aggregates replicates, and writes the outputs listed in [docs/data_dictionary.md](docs/data_dictionary.md#phase-1-build-outputs) plus `data/processed/build/manifest.json` (config, plates, input checksums, feature-selection counts, warnings). Method details: [docs/methodology.md](docs/methodology.md#phase-1--preprocessing).
+
+## 3b. Import already-processed data (alternative)
+
+If you have profiles processed elsewhere, import them directly. See [docs/data_dictionary.md](docs/data_dictionary.md) for the canonical columns.
 
 ```powershell
 cd backend
