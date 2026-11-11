@@ -122,16 +122,19 @@ def read_plates(plates: pd.DataFrame, config: BuildConfig) -> PlateTable:
         frame = pd.read_csv(config.source.plate_file(row.plate), low_memory=False)
         features = [c for c in frame.columns if not c.startswith("Metadata_")]
         feature_sets.append(set(features))
-        for column in WELL_METADATA:
-            if column not in frame.columns:
-                frame[column] = pd.NA
-        frame = frame[[*WELL_METADATA, *features]].copy()
-        frame["Metadata_Plate"] = row.plate
-        frame["Metadata_modality"] = row.modality
-        frame["Metadata_anomaly"] = row.anomaly
-        frame["cell_line"] = row.cell_type
-        frame["timepoint"] = row.timepoint
-        frames.append(frame)
+        # Build the metadata block separately and join once; inserting columns one by one into a
+        # ~5,800-column frame fragments it.
+        metadata = pd.DataFrame(
+            {column: frame[column] if column in frame.columns else pd.NA for column in WELL_METADATA},
+            index=frame.index,
+        ).assign(
+            Metadata_Plate=row.plate,
+            Metadata_modality=row.modality,
+            Metadata_anomaly=row.anomaly,
+            cell_line=row.cell_type,
+            timepoint=row.timepoint,
+        )
+        frames.append(pd.concat([metadata, frame[features]], axis=1))
 
     shared = set.intersection(*feature_sets)
     union = set.union(*feature_sets)

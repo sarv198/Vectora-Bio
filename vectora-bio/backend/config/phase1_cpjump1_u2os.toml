@@ -39,15 +39,17 @@ method = "median"
 min_replicates = 2
 
 [annotations]
-# MoA annotations are not part of the pilot metadata. Point this at e.g. the Drug Repurposing Hub
-# drug annotation file to fill compound `moa` (joined on pert_iname, case-insensitive).
-# moa_file = "data/raw/annotations/repurposing_drugs.txt"
+# MoA annotations are not part of the pilot metadata; they come from the Drug Repurposing Hub
+# drug annotation file (joined on pert_iname, case-insensitive). Non-commercial use only.
+# https://s3.amazonaws.com/data.clue.io/repurposing/downloads/repurposing_drugs_20200324.txt
+moa_file = "data/raw/annotations/repurposing_drugs_20200324.txt"
 moa_key_column = "pert_iname"
 moa_match_on = "pert_iname"
 moa_column = "moa"
 moa_comment_prefix = "!"
-# Optional symbol -> stable gene id table (e.g. HGNC export). Without it gene_id = gene symbol.
-# gene_id_file = "data/raw/annotations/hgnc_complete_set.txt"
+# Symbol -> NCBI (Entrez) gene id from the HGNC complete set. Comment out to use symbols as ids.
+# https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt
+gene_id_file = "data/raw/annotations/hgnc_complete_set.txt"
 gene_symbol_column = "symbol"
 gene_id_column = "entrez_id"
 
