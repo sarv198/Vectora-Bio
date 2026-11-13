@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 
 import { ApiErrorNotice } from "@/components/ApiErrorNotice";
 import { DataTable } from "@/components/DataTable";
+import { SimilarCompoundsPanel } from "@/components/SimilarCompoundsPanel";
 import { Card, LoadingState, PageHeader } from "@/components/ui";
 import { api } from "@/lib/api";
 import { formatHours } from "@/lib/format";
@@ -40,11 +41,18 @@ export default function CompoundDetailPage() {
               </div>
             </dl>
           </Card>
+          {data.contexts.length > 0 && (
+            <SimilarCompoundsPanel
+              compoundId={data.compound_id}
+              cellLine={data.contexts[0].cell_line}
+              timepoint={data.contexts[0].timepoint}
+            />
+          )}
           <div className="flex flex-wrap gap-2 text-sm">
             {[
-              ["/similarity", "Find similar compounds"],
-              ["/targets", "Prioritize targets"],
-              ["/moa", "Infer MoA"],
+              [`/similarity?compound=${encodeURIComponent(data.compound_id)}`, "Find similar compounds"],
+              [`/targets?compound=${encodeURIComponent(data.compound_id)}`, "Prioritize targets"],
+              [`/moa?compound=${encodeURIComponent(data.compound_id)}`, "Infer MoA"],
             ].map(([href, label]) => (
               <Link key={href} href={href} className="rounded-md border border-line bg-surface px-3 py-1.5 hover:bg-surface-2">
                 {label}

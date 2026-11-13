@@ -48,6 +48,7 @@ def list_compounds(
     cell_line: str | None = None,
     timepoint: float | None = None,
     moa: str | None = None,
+    annotated: bool | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> Page[Compound]:
@@ -63,6 +64,9 @@ def list_compounds(
         statement = statement.where(CompoundRecord.timepoint == timepoint)
     if moa:
         statement = statement.where(CompoundRecord.moa.ilike(f"%{moa.strip()}%"))
+    if annotated is not None:
+        has_moa = CompoundRecord.moa.is_not(None) & (CompoundRecord.moa != "")
+        statement = statement.where(has_moa if annotated else ~has_moa)
     statement = statement.order_by(CompoundRecord.compound_id, CompoundRecord.cell_line, CompoundRecord.timepoint)
     with database_errors():
         rows, total = _paginate(db, statement, limit, offset)

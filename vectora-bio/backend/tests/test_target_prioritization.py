@@ -73,3 +73,42 @@ def test_annotations_do_not_change_order():
 def test_prioritize_falls_back_to_perturbation_id():
     candidates = prioritize_candidate_targets([GeneMatch("p1", 0.4, 0.4, 1)])
     assert candidates[0].gene_key == "p1" and candidates[0].gene_symbol is None
+
+
+from app.core.target_prioritization import neighbor_target_support, rank_candidate_targets  # noqa: E402
+
+
+def test_neighbor_target_support_weights_and_excludes_query():
+    neighbors = [("q", 1.0), ("a", 0.6), ("b", 0.3), ("c", -0.5), ("d", 0.1)]
+    targets = {"q": ["SELF"], "a": ["G1", "G2"], "b": ["G1"], "c": ["G3"], "d": []}
+    support = neighbor_target_support("q", neighbors, targets)
+    total = 0.6 + 0.3 + 0.1  # positive neighbours other than the query
+    assert support["G1"][0] == pytest.approx(0.9 / total)
+    assert support["G2"][0] == pytest.approx(0.6 / total)
+    assert support["G1"][1] == (("a", 0.6), ("b", 0.3))
+    assert "SELF" not in support  # the query's own annotation is never used
+    assert "G3" not in support  # negatively similar neighbours do not vote
+    assert neighbor_target_support("q", [("a", -0.2)], targets) == {}
+
+
+def test_rank_candidate_targets_combines_evidence():
+    matches = [
+        GeneMatch("g1_a", 0.5, 0.5, 1, gene_id="1", gene_symbol="G1"),
+        GeneMatch("g1_b", 0.2, 0.2, 3, gene_id="1", gene_symbol="G1"),
+        GeneMatch("g2", 0.4, 0.4, 2, gene_id="2", gene_symbol="G2"),
+    ]
+    percentiles = {"g1_a": 0.95, "g1_b": 0.5, "g2": 0.9}
+    phenotype_only = rank_candidate_targets(matches, percentiles, neighbor_weight=0)
+    assert [t.gene_symbol for t in phenotype_only] == ["G1", "G2"]
+    assert phenotype_only[0].priority == pytest.approx(0.95)
+    assert phenotype_only[0].n_strong_reagents == 1
+    assert phenotype_only[0].reagents[0].perturbation_id == "g1_a"
+
+    support = {"G2": (0.5, (("x", 0.4),))}
+    combined = rank_candidate_targets(matches, percentiles, support, neighbor_weight=2.0)
+    assert [t.gene_symbol for t in combined] == ["G2", "G1"]
+    assert combined[0].priority == pytest.approx((0.9 + 2 * 0.5) / 3)
+    assert combined[0].supporting_compounds == (("x", 0.4),)
+    assert combined[1].neighbor_support == 0
+    with pytest.raises(ValueError):
+        rank_candidate_targets(matches, percentiles, neighbor_weight=-1)

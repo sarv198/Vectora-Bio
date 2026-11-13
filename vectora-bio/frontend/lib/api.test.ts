@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, api, buildQuery, parseApiError } from "@/lib/api";
-import { formatSigned, optionalNumber } from "@/lib/format";
+import { formatSigned, optionalNumber, splitLabels, topPercent } from "@/lib/format";
 
 describe("parseApiError", () => {
   it("reads the backend error envelope", () => {
@@ -76,5 +76,22 @@ describe("format helpers", () => {
     expect(optionalNumber(" 48 ")).toBe(48);
     expect(optionalNumber("")).toBeNull();
     expect(optionalNumber("abc")).toBeNull();
+  });
+});
+
+describe("annotation helpers", () => {
+  it("splits pipe-separated labels", () => {
+    expect(splitLabels("kinase inhibitor| CDK inhibitor |kinase inhibitor")).toEqual([
+      "kinase inhibitor",
+      "CDK inhibitor",
+    ]);
+    expect(splitLabels(null)).toEqual([]);
+  });
+
+  it("formats percentiles as top-x", () => {
+    expect(topPercent(98.8)).toBe("Top 1.2%");
+    expect(topPercent(50)).toBe("Top 50%");
+    expect(topPercent(100)).toBe("Top 0.1%");
+    expect(topPercent(null)).toBe("—");
   });
 });

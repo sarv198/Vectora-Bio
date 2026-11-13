@@ -17,11 +17,19 @@ def list_compounds(
     cell_line: str | None = None,
     timepoint: float | None = Query(default=None, gt=0),
     moa: str | None = Query(default=None, description="Substring of the MoA annotation."),
+    annotated: bool | None = Query(default=None, description="true: only compounds with a MoA; false: only without."),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> Page[Compound]:
     return metadata_service.list_compounds(
-        db, search=search, cell_line=cell_line, timepoint=timepoint, moa=moa, limit=limit, offset=offset
+        db,
+        search=search,
+        cell_line=cell_line,
+        timepoint=timepoint,
+        moa=moa,
+        annotated=annotated,
+        limit=limit,
+        offset=offset,
     )
 
 

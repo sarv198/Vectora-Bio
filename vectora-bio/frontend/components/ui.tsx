@@ -127,7 +127,7 @@ export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "ok" 
     accent: "bg-accent-soft text-accent",
   };
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${tones[tone]}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${tones[tone]}`}>
       {children}
     </span>
   );

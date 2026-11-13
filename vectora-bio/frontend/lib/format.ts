@@ -34,3 +34,17 @@ export function optionalText(value: string): string | null {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 }
+
+/** Split a '|'-separated annotation ("a|b") into distinct trimmed labels. */
+export function splitLabels(value: unknown): string[] {
+  if (typeof value !== "string") return [];
+  return [...new Set(value.split("|").map((part) => part.trim()).filter(Boolean))];
+}
+
+/** Express a 0-100 percentile as how exclusive it is: 98.8 -> "Top 1.2%". */
+export function topPercent(percentile: number | null | undefined): string {
+  if (percentile === null || percentile === undefined || !Number.isFinite(percentile)) return "—";
+  const top = Math.max(0, 100 - percentile);
+  if (top < 0.1) return "Top 0.1%";
+  return `Top ${top < 10 ? top.toFixed(1) : Math.round(top)}%`;
+}

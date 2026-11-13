@@ -1,12 +1,21 @@
 """Compound-to-gene matching and candidate target prioritization.
 
-A compound that inhibits a target is expected to resemble loss-of-function of that
-gene and may anti-correlate with its overexpression, so matching can rank by the
-absolute cosine similarity while keeping the signed value as evidence.
+Two separate questions:
+
+* **Matching** (``match_compound_to_genes``): which genetic perturbations produce cellular
+  profiles that resemble this compound's? Ranked by absolute cosine by default, because
+  knockout and overexpression profiles of a target do not reliably mirror each other; the
+  signed value is kept as evidence.
+* **Prioritization** (``rank_candidate_targets``): which genes have the strongest combined
+  evidence as candidate targets? Combines the phenotypic match (as a percentile of all
+  compound-reagent similarities) with "neighbour target" evidence: genes that the query's
+  most phenotypically similar compounds are annotated to act on.
+
+Neither establishes a direct molecular target; results are candidate associations.
 """
 
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -149,3 +158,112 @@ def _optional_str(value: object) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+@dataclass(frozen=True)
+class PrioritizedTarget:
+    """A candidate target gene with the evidence behind its priority score."""
+
+    gene_key: str
+    gene_symbol: str | None
+    priority: float
+    rank: int
+    phenotypic_score: float
+    neighbor_support: float
+    reagents: tuple[GeneMatch, ...]
+    reagent_percentiles: Mapping[str, float]
+    supporting_compounds: tuple[tuple[str, float], ...] = ()
+    n_strong_reagents: int = 0
+
+
+def neighbor_target_support(
+    compound_id: str,
+    neighbors: Sequence[tuple[str, float]],
+    compound_targets: Mapping[str, Iterable[str]],
+) -> dict[str, tuple[float, tuple[tuple[str, float], ...]]]:
+    """Similarity-weighted share of the query's neighbours annotated to act on each gene.
+
+    Each neighbour with positive similarity contributes its similarity to every gene in its
+    annotated target list; totals are divided by the summed similarity of all positive
+    neighbours, giving values in [0, 1]. The query's own annotation is never used.
+
+    Returns gene symbol -> (support, ((compound_id, similarity), ...) of contributing neighbours).
+    """
+    positive = [(cid, float(sim)) for cid, sim in neighbors if cid != compound_id and sim > 0]
+    total = sum(sim for _, sim in positive)
+    if total == 0:
+        return {}
+    weights: dict[str, float] = defaultdict(float)
+    contributors: dict[str, list[tuple[str, float]]] = defaultdict(list)
+    for cid, sim in positive:
+        for gene in {str(g).strip() for g in compound_targets.get(cid, ()) if str(g).strip()}:
+            weights[gene] += sim
+            contributors[gene].append((cid, sim))
+    return {
+        gene: (weight / total, tuple(sorted(contributors[gene], key=lambda pair: -pair[1])))
+        for gene, weight in weights.items()
+    }
+
+
+def rank_candidate_targets(
+    matches: Sequence[GeneMatch],
+    match_percentiles: Mapping[str, float],
+    neighbor_support: Mapping[str, tuple[float, tuple[tuple[str, float], ...]]] | None = None,
+    *,
+    neighbor_weight: float = 2.0,
+    strong_percentile: float = 0.9,
+) -> list[PrioritizedTarget]:
+    """Combine phenotypic matching and neighbour-target evidence into one priority per gene.
+
+    ``phenotypic_score`` is the best reagent's match percentile (0-1) for the gene.
+    ``neighbor_support`` (0-1) comes from ``neighbor_target_support`` keyed by gene symbol.
+    ``priority = (phenotypic_score + neighbor_weight * neighbor_support) / (1 + neighbor_weight)``.
+    ``n_strong_reagents`` counts reagents at or above ``strong_percentile``: agreement between
+    independent reagents for the same gene, shown as evidence.
+
+    Ties are broken by phenotypic score, then gene key.
+    """
+    if neighbor_weight < 0:
+        raise ValueError("neighbor_weight must be non-negative.")
+    neighbor_support = neighbor_support or {}
+    groups: dict[str, list[GeneMatch]] = defaultdict(list)
+    for match in matches:
+        groups[match.gene_id or match.gene_symbol or match.perturbation_id].append(match)
+
+    scored = []
+    for gene_key, group in groups.items():
+        percentiles = {m.perturbation_id: float(match_percentiles.get(m.perturbation_id, 0.0)) for m in group}
+        reagents = tuple(sorted(group, key=lambda m: (-percentiles[m.perturbation_id], m.perturbation_id)))
+        symbol = next((m.gene_symbol for m in reagents if m.gene_symbol), None)
+        phenotypic = max(percentiles.values())
+        support, contributors = neighbor_support.get(symbol or gene_key, (0.0, ()))
+        priority = (phenotypic + neighbor_weight * support) / (1 + neighbor_weight)
+        strong = sum(value >= strong_percentile for value in percentiles.values())
+        scored.append((gene_key, symbol, priority, phenotypic, support, reagents, percentiles, contributors, strong))
+
+    scored.sort(key=lambda item: (-item[2], -item[3], item[0]))
+    return [
+        PrioritizedTarget(
+            gene_key=gene_key,
+            gene_symbol=symbol,
+            priority=float(priority),
+            rank=rank,
+            phenotypic_score=float(phenotypic),
+            neighbor_support=float(support),
+            reagents=reagents,
+            reagent_percentiles=percentiles,
+            supporting_compounds=contributors,
+            n_strong_reagents=int(strong),
+        )
+        for rank, (
+            gene_key,
+            symbol,
+            priority,
+            phenotypic,
+            support,
+            reagents,
+            percentiles,
+            contributors,
+            strong,
+        ) in enumerate(scored, start=1)
+    ]

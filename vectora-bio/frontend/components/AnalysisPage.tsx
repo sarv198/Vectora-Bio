@@ -60,6 +60,7 @@ export function AnalysisPage({
   scoreLabel,
   candidateLabel,
   method,
+  renderResults,
 }: {
   title: string;
   description: ReactNode;
@@ -72,6 +73,8 @@ export function AnalysisPage({
   scoreLabel: string;
   candidateLabel?: string;
   method: ReactNode;
+  /** Replaces the generic ranked table for analyses with a dedicated results view. */
+  renderResults?: (response: AnalysisResponse) => ReactNode;
 }) {
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -99,7 +102,11 @@ export function AnalysisPage({
           {error ? (
             <ApiErrorNotice error={error} />
           ) : response ? (
-            <PredictionResults response={response} scoreLabel={scoreLabel} candidateLabel={candidateLabel} />
+            renderResults ? (
+              renderResults(response)
+            ) : (
+              <PredictionResults response={response} scoreLabel={scoreLabel} candidateLabel={candidateLabel} />
+            )
           ) : (
             <EmptyState title="No query yet">Fill in the query and run the analysis.</EmptyState>
           )}

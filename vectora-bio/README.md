@@ -4,9 +4,9 @@ Vectora Bio analyzes high-dimensional cellular phenotypic profiles (e.g. process
 
 | Capability | API | Status |
 | --- | --- | --- |
-| Compound-to-compound phenotypic similarity | `POST /api/similarity/compounds` | Cosine similarity of consensus profiles |
-| Compound-to-gene matching, target prioritization | `POST /api/targets/prioritize` | Cosine / \|cosine\| matching, max per gene |
-| Similarity-based MoA inference | `POST /api/moa/infer` | Similarity-weighted kNN vote |
+| Compound-to-compound phenotypic similarity | `POST /api/similarity/compounds` | Cosine similarity with score percentiles, known MoA/targets, reproducibility filters (Phase 2) |
+| Compound-to-gene matching, target prioritization | `POST /api/targets/match`, `POST /api/targets/prioritize` | Reagent matching with percentiles; gene priority from phenotype + targets of similar compounds (Phase 3) |
+| Similarity-based MoA inference | `POST /api/moa/infer` | Similarity-weighted vote with leave-one-out calibrated confidence (Phase 4) |
 | Phenotypic rescue / perturbation reversal | `POST /api/rescue/search` | Negative cosine vs. control-subtracted signature |
 | Model evaluation | `GET /api/evaluation` + `python -m app.pipeline.evaluate_moa` | Leave-one-out MoA + retrieval metrics |
 

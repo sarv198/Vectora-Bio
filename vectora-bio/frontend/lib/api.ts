@@ -10,6 +10,7 @@ import type {
   Page,
   RescueSearchRequest,
   SimilarityRequest,
+  TargetMatchRequest,
   TargetPrioritizationRequest,
 } from "@/lib/types";
 
@@ -103,6 +104,7 @@ export const api = {
     apiFetch<Page<GeneticPerturbation>>(`/api/genes${buildQuery(params)}`),
   getGene: (id: string) => apiFetch<GeneDetail>(`/api/genes/${encodeURIComponent(id)}`),
   similarCompounds: (body: SimilarityRequest) => post<AnalysisResponse>("/api/similarity/compounds", body),
+  matchGenes: (body: TargetMatchRequest) => post<AnalysisResponse>("/api/targets/match", body),
   prioritizeTargets: (body: TargetPrioritizationRequest) => post<AnalysisResponse>("/api/targets/prioritize", body),
   inferMoa: (body: MoaInferenceRequest) => post<AnalysisResponse>("/api/moa/infer", body),
   searchRescue: (body: RescueSearchRequest) => post<AnalysisResponse>("/api/rescue/search", body),

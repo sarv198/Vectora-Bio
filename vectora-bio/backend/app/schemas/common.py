@@ -33,6 +33,7 @@ class GeneticPerturbationType(StrEnum):
 
 class PredictionType(StrEnum):
     COMPOUND_SIMILARITY = "compound_similarity"
+    COMPOUND_GENE_MATCHING = "compound_gene_matching"
     TARGET_PRIORITIZATION = "target_prioritization"
     MOA_INFERENCE = "moa_inference"
     PHENOTYPIC_RESCUE = "phenotypic_rescue"

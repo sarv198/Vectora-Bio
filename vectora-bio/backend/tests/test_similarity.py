@@ -2,7 +2,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from app.core.similarity import calculate_cosine_similarity, rank_similar_compounds
+from app.core.similarity import (
+    calculate_cosine_similarity,
+    pairwise_cosine_similarity,
+    rank_similar_compounds,
+    score_percentile,
+    similarity_background,
+)
 
 
 def test_cosine_identical_opposite_orthogonal():
@@ -102,3 +108,50 @@ def test_rank_similar_compounds_errors(profiles):
 
 def test_rank_similar_compounds_single_profile_returns_empty(profiles):
     assert rank_similar_compounds("q", profiles.iloc[[0]]) == []
+
+
+def test_pairwise_cosine_similarity(profiles):
+    matrix = pairwise_cosine_similarity(profiles)
+    assert list(matrix.index) == list(profiles.index) == list(matrix.columns)
+    np.testing.assert_allclose(np.diag(matrix), 1.0)
+    np.testing.assert_allclose(matrix.to_numpy(), matrix.to_numpy().T)
+    np.testing.assert_allclose(
+        matrix.loc["q"].drop("q").to_numpy(),
+        calculate_cosine_similarity(profiles.loc["q"], profiles.drop(index="q")),
+    )
+    with pytest.raises(ValueError, match="zero-norm"):
+        pairwise_cosine_similarity(
+            pd.concat([profiles, pd.DataFrame([[0.0, 0.0, 0.0]], index=["z"], columns=profiles.columns)])
+        )
+
+
+def test_similarity_background_full_and_sampled(profiles):
+    full = similarity_background(profiles)
+    upper = pairwise_cosine_similarity(profiles).to_numpy()[np.triu_indices(len(profiles), k=1)]
+    np.testing.assert_allclose(full, np.sort(upper))
+    sampled = similarity_background(profiles, max_pairs=4, seed=1)
+    assert sampled.size == 4 and np.all(np.diff(sampled) >= 0)
+    assert set(np.round(sampled, 10)) <= set(np.round(upper, 10))  # sampled pairs are real distinct pairs
+    np.testing.assert_allclose(sampled, similarity_background(profiles, max_pairs=4, seed=1))
+    with pytest.raises(ValueError, match="two profiles"):
+        similarity_background(profiles.iloc[[0]])
+
+
+def test_score_percentile():
+    background = np.array([-0.5, 0.0, 0.2, 0.4, 0.9])
+    np.testing.assert_allclose(score_percentile(np.array([-1.0, 0.2, 0.95]), background), [0.0, 60.0, 100.0])
+    with pytest.raises(ValueError):
+        score_percentile(0.1, np.array([]))
+
+
+def test_cross_similarity_background(profiles):
+    from app.core.similarity import cross_similarity_background
+
+    other = profiles.iloc[:2][list(reversed(profiles.columns))]  # same features, different order
+    background = cross_similarity_background(profiles, other)
+    expected = np.sort((pairwise_cosine_similarity(profiles).iloc[:, :2]).to_numpy().ravel())
+    np.testing.assert_allclose(background, expected)
+    assert np.all(cross_similarity_background(profiles, other, absolute=True) >= 0)
+    assert cross_similarity_background(profiles, other, max_pairs=3).size == 3
+    with pytest.raises(ValueError, match="different features"):
+        cross_similarity_background(profiles, other.rename(columns={"f1": "zz"}))

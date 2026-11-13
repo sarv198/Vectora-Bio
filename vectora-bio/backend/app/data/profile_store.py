@@ -1,14 +1,17 @@
 """Cached access to the processed Parquet profile files."""
 
 import threading
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
+from typing import TypeVar
 
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
 from app.config import Settings, get_settings
+from app.core.similarity import similarity_background
 from app.data.loaders import (
     AmbiguousContextError,
     ConsensusProfiles,
@@ -23,6 +26,7 @@ from app.schemas.common import ProfileType
 from app.schemas.profile import DatasetStatus
 
 MODALITY_COLUMN = "Metadata_modality"
+T = TypeVar("T")
 
 
 def dataset_name(profile_type: ProfileType) -> str:
@@ -45,7 +49,12 @@ class ProfileStore:
         }
         self._frames: dict[ProfileType, tuple[float, pd.DataFrame]] = {}
         self._consensus: dict[tuple, ConsensusProfiles] = {}
+        self._backgrounds: dict[tuple, np.ndarray] = {}
+        self._memo: dict[tuple, object] = {}
         self._lock = threading.Lock()
+
+    def _context_key(self, profile_type: ProfileType, cell_line: str | None, timepoint: float | None) -> tuple:
+        return (profile_type, cell_line.casefold() if cell_line else None, timepoint, self._settings.consensus_method)
 
     def path(self, profile_type: ProfileType) -> Path:
         return self._paths[profile_type]
@@ -87,6 +96,8 @@ class ProfileStore:
             frame["timepoint"] = pd.to_numeric(frame["timepoint"])
             self._frames[profile_type] = (mtime, frame)
             self._consensus = {key: value for key, value in self._consensus.items() if key[0] != profile_type}
+            self._backgrounds = {key: value for key, value in self._backgrounds.items() if key[0] != profile_type}
+            self._memo = {key: value for key, value in self._memo.items() if profile_type not in key[0]}
             return frame
 
     def feature_columns(self, profile_type: ProfileType) -> list[str]:
@@ -100,7 +111,7 @@ class ProfileStore:
     ) -> ConsensusProfiles:
         """Consensus profiles for one context. Raises ``InvalidQueryError`` when nothing matches."""
         frame = self.load(profile_type)
-        key = (profile_type, cell_line.casefold() if cell_line else None, timepoint, self._settings.consensus_method)
+        key = self._context_key(profile_type, cell_line, timepoint)
         with self._lock:
             if key in self._consensus:
                 return self._consensus[key]
@@ -125,6 +136,40 @@ class ProfileStore:
         with self._lock:
             self._consensus[key] = consensus
         return consensus
+
+    def similarity_background(
+        self, profile_type: ProfileType, cell_line: str | None = None, timepoint: float | None = None
+    ) -> np.ndarray:
+        """Sorted pairwise cosine similarities among the consensus profiles of one context (cached)."""
+        consensus = self.consensus(profile_type, cell_line, timepoint)
+        key = self._context_key(profile_type, cell_line, timepoint)
+        with self._lock:
+            if key in self._backgrounds:
+                return self._backgrounds[key]
+        background = similarity_background(consensus.features)
+        with self._lock:
+            self._backgrounds[key] = background
+        return background
+
+    def memo(self, depends_on: tuple[ProfileType, ...], key: tuple, factory: Callable[[], T]) -> T:
+        """Cache a derived result until any profile file in ``depends_on`` is reloaded."""
+        for profile_type in depends_on:
+            self.load(profile_type)  # reloads (and invalidates) if the file changed
+        full_key = (depends_on, *key)
+        with self._lock:
+            if full_key in self._memo:
+                return self._memo[full_key]  # type: ignore[return-value]
+        value = factory()
+        with self._lock:
+            self._memo[full_key] = value
+        return value
+
+    def metadata_values(self, profile_type: ProfileType, column: str) -> pd.Series:
+        """First non-null value of a ``Metadata_*`` column per perturbation; empty if the file lacks it."""
+        frame = self.load(profile_type)
+        if column not in frame.columns:
+            return pd.Series(dtype=object)
+        return frame.dropna(subset=[column]).groupby("perturbation_id")[column].first()
 
     def modality(self, profile_type: ProfileType, perturbation_id: str) -> str | None:
         """``Metadata_modality`` of a perturbation (compound / crispr / orf), if the file records it."""
