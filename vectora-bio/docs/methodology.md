@@ -102,29 +102,73 @@ These figures are on the same data used to choose the defaults (±~2% sampling n
 
 `GET /api/compounds?annotated=false` lists the unannotated compounds, the real targets for inference; the MoA page offers them as quick picks.
 
-## 4. Phenotypic rescue — `core/reversal.py`
+## 4. Phenotypic rescue (Phase 5) — `core/reversal.py`, `core/phenotype_quality.py`, `core/features.py`
 
-- Signature = perturbation consensus − matched control consensus (same cell line and timepoint). Compound consensus profiles are control-subtracted the same way when `subtract_matched_controls=true`.
-- `calculate_reversal_score(compound, signature)` = −cosine: 1 is exact opposition, −1 mimicry.
-- `rank_reversal_candidates(signature, compound_profiles, top_k)`.
+**Scoring:**
+1. Signature = genetic perturbation consensus − matched control consensus (same cell line, timepoint and reagent type: control guides for CRISPR, control ORFs for ORF).
+2. Compound consensus profiles are control-subtracted the same way (DMSO).
+3. `calculate_reversal_score(compound, signature)` = −cosine, so 1 is exact opposition and −1 mimicry. `rank_reversal_candidates` ranks every compound.
 
-Reversal in profile space suggests, but does not establish, functional rescue.
+**Explanations:** `reversal_contributions` splits each score into per-feature terms `−c_i·s_i / (|c||s|)` that sum exactly to the score.
+- Positive terms are features the compound moves opposite to the perturbation.
+- Negative terms work against the reversal.
+- `describe_feature` turns CellProfiler names into labels (compartment, measurement, stain channel).
+- `group_contributions` totals the terms by measurement type and by channel.
 
-## 5. Evaluation — `core/evaluation.py`, `services/evaluation_service.py`
+**Quality checks.** Each is judged against control noise or the compound population, never a fixed constant:
+- **Weak responses (excluded by default).**
+  - The comparison point is a pseudo-replicate: the median of 4 random DMSO wells, one per plate, mirroring 4 replicate plates (`pseudo_replicate_consensus`).
+  - A compound's strength is its profile norm as a percentile of 2,000 such pseudo-replicates.
+  - Compounds below `min_response_percentile` (default 95%) are indistinguishable from noise and are dropped. On the JUMP pilot that removes 104 of 306 compounds.
+- **Cell loss (flagged).**
+  - The pilot's processed files contain no per-well cell count. Instead, the density features (distance to nearest neighbour, % touching, number of neighbours) give a cell-loss proxy (`density_scores`).
+  - Strong compound responses correlate with them at |r| = 0.88–0.91, i.e. much of the "signal" is fewer, sparser cells.
+  - A compound is flagged when its proxy exceeds 99% of DMSO pseudo-replicates.
+- **Generic response (flagged).** A compound is flagged when its profile is among the 10% most aligned with the average direction of all compound profiles (`generic_response_direction`). Many unrelated compounds, often stressed or toxic, share this direction.
+- **Optional exclusion.** `exclude_stress_like` removes both kinds of flagged compound. It is off by default because many pilot compounds reduce density at the screening dose (97 of the 202 responsive ones).
 
-Metrics:
+**Interpretation:** these are computational reversal candidates, not proven rescue.
 
-- `precision_at_k` — relevant items in the top k / k (short rankings are penalized).
-- `recall_at_k` — relevant items in the top k / all relevant (undefined, raises, with no relevant items).
-- `ndcg_at_k` — linear gain, log2 discount, normalized by the ideal ordering; 0 if all relevance is 0 (matches `sklearn.metrics.ndcg_score`).
-- `evaluate_moa_predictions` — accuracy and precision/recall/F1 macro-averaged over the true labels.
+## 5. Evaluation (Phase 6) — `core/evaluation.py`, `services/evaluation_service.py`
 
-Benchmark (`python -m app.pipeline.evaluate_moa`), leave-one-out over annotated compounds in one context:
+**Metrics:** `precision_at_k`, `recall_at_k`, `ndcg_at_k` (linear gain; 0 when nothing is relevant, as in scikit-learn) and `evaluate_moa_predictions` (accuracy; macro precision, recall and F1 over the true labels).
 
-- top-1 MoA from kNN voting vs. annotation (single-label compounds only; no prediction counts as wrong);
-- same-MoA retrieval: other annotated compounds ranked by similarity, relevant if they share any label → mean precision@k, recall@k, nDCG@k.
+**Held-out protocol:** `run_benchmarks`, `POST /api/evaluation/run` or `python -m app.pipeline.evaluate`.
+- `make_folds` builds 5-fold cross-validation over compounds.
+- In each fold the test compounds are removed from the reference set entirely, profiles and annotations both.
+- Predictions use reference compounds only. The hidden annotations are used only to score.
 
-Results are stored with their parameters and `dataset_split="all"`. There is no train/test split yet; leave-one-out on the full annotated set measures neighbourhood consistency, not generalization to new chemistry.
+**Two split strategies:**
+- `random`.
+- `target_group`: compounds sharing a designed target (`Metadata_gene`) are held out together. JUMP-Target pairs two compounds per target, so this measures generalization to targets the reference set has never seen.
+
+**Leakage audit:** `audit_folds` asserts, and stores with every metric, that
+- reference and test sets are disjoint;
+- every compound is tested exactly once;
+- groups never straddle a split;
+- test annotations are absent from the reference.
+
+Unit tests also check that no module uses a query's own annotation.
+
+**Benchmarks, each against a baseline:**
+
+| Task | Relevant items | Metrics | Baseline |
+|---|---|---|---|
+| Similarity retrieval | Reference compounds sharing an MoA label | P@10, R@10, nDCG@10 | Random ranking (20 permutations) |
+| MoA inference | The hidden label | top-1, top-5, top-1 for recoverable labels, macro-F1 | Most frequent reference label(s) |
+| Target prioritization | The hidden annotated targets among 160 genes | hit@10, P@10, nDCG@10, MRR; phenotype-only and combined | Random ranking |
+
+**Results on the JUMP pilot** (U2OS, 5 folds, seed 0):
+
+| Metric | Random split | Unseen targets | Baseline |
+|---|---|---|---|
+| Similarity recall@10 | 19.3% | 13.9% | ~4% |
+| Similarity nDCG@10 | 0.137 | 0.101 | ~0.02 |
+| MoA top-1 (recoverable labels) | 8.7% | 6.5% | 0.5–0.7% |
+| Targets hit@10, phenotype + similar compounds | 20.7% | 15.4% | ~9% |
+| Targets hit@10, phenotype only | 18.4% | 18.4% | ~9% |
+
+**Key finding:** similar-compound evidence improves target ranking only when another compound for the same target is already in the reference set (random split). For a compound with an unseen target, phenotype-only ranking is better. Set `neighbor_weight = 0` for genuinely novel chemistry.
 
 ## Known limitations
 

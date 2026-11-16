@@ -1,6 +1,6 @@
 """Ranking and classification metrics for model evaluation."""
 
-from collections.abc import Hashable, Iterable, Sequence
+from collections.abc import Hashable, Iterable, Mapping, Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -96,4 +96,75 @@ def evaluate_moa_predictions(y_true: Sequence[str], y_pred: Sequence[str]) -> di
         "macro_f1": float(f1),
         "n_samples": float(len(y_true_list)),
         "n_classes": float(len(set(y_true_list))),
+    }
+
+
+def make_folds(
+    ids: Sequence[str],
+    n_folds: int = 5,
+    seed: int = 0,
+    groups: Mapping[str, Hashable] | None = None,
+) -> list[tuple[list[str], list[str]]]:
+    """Split items into ``n_folds`` (reference, test) pairs; every item is tested exactly once.
+
+    With ``groups``, items sharing a group always fall in the same fold (group k-fold), so a test
+    item never has a group-mate in its reference set. Items without a group form their own group.
+    """
+    if n_folds < 2:
+        raise ValueError("n_folds must be at least 2.")
+    unique_ids = list(dict.fromkeys(ids))
+    if len(unique_ids) < n_folds:
+        raise ValueError(f"Need at least {n_folds} items for {n_folds} folds, got {len(unique_ids)}.")
+    rng = np.random.default_rng(seed)
+    if groups is None:
+        order = rng.permutation(len(unique_ids))
+        assignment = {unique_ids[i]: position % n_folds for position, i in enumerate(order)}
+    else:
+        group_of = {item: groups.get(item, ("__own__", item)) for item in unique_ids}
+        members: dict[Hashable, list[str]] = {}
+        for item, group in group_of.items():
+            members.setdefault(group, []).append(item)
+        group_keys = list(members)
+        rng.shuffle(group_keys)
+        # Largest groups first into the currently smallest fold keeps fold sizes balanced.
+        group_keys.sort(key=lambda g: -len(members[g]))
+        sizes = [0] * n_folds
+        assignment = {}
+        for group in group_keys:
+            fold = int(np.argmin(sizes))
+            for item in members[group]:
+                assignment[item] = fold
+            sizes[fold] += len(members[group])
+    folds = []
+    for fold in range(n_folds):
+        test = [item for item in unique_ids if assignment[item] == fold]
+        reference = [item for item in unique_ids if assignment[item] != fold]
+        folds.append((reference, test))
+    return folds
+
+
+def audit_folds(
+    folds: Sequence[tuple[Sequence[str], Sequence[str]]],
+    groups: Mapping[str, Hashable] | None = None,
+) -> dict[str, object]:
+    """Leakage checks for held-out folds; raises ``AssertionError`` if any check fails.
+
+    Checks: reference and test sets are disjoint in every fold; every item is tested exactly
+    once; with ``groups``, no group appears on both sides of a fold.
+    """
+    tested: list[str] = []
+    for index, (reference, test) in enumerate(folds):
+        overlap = set(reference) & set(test)
+        assert not overlap, f"Fold {index}: {len(overlap)} item(s) in both reference and test sets."
+        if groups is not None:
+            shared = {groups[i] for i in test if i in groups} & {groups[i] for i in reference if i in groups}
+            assert not shared, f"Fold {index}: {len(shared)} group(s) on both sides of the split."
+        tested.extend(test)
+    assert len(tested) == len(set(tested)), "Some items are tested more than once."
+    return {
+        "n_folds": len(folds),
+        "n_items": len(tested),
+        "reference_test_disjoint": True,
+        "each_item_tested_once": True,
+        "groups_disjoint": groups is not None,
     }

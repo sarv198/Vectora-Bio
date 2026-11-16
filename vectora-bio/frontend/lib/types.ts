@@ -206,6 +206,31 @@ export interface RescueSearchRequest extends ContextFilter {
   perturbation_timepoint?: number | null;
   subtract_matched_controls?: boolean;
   top_k?: number;
+  exclude_weak_responses?: boolean;
+  min_response_percentile?: number;
+  exclude_stress_like?: boolean;
+}
+
+export interface FeatureContribution {
+  feature: string;
+  label: string;
+  value: number;
+  signature: number;
+  compound?: number;
+}
+
+/** `candidate_annotations` returned by phenotypic rescue. */
+export interface RescueAnnotations {
+  moa: string | null;
+  response_percentile: number | null;
+  replicate_cosine: number | null;
+  density_percentile: number | null;
+  generic_cosine: number | null;
+  stress_flags: ("cell_loss" | "generic_response")[];
+  reversing_features: FeatureContribution[];
+  opposing_features: FeatureContribution[];
+  by_measurement: Record<string, number>;
+  by_channel: Record<string, number>;
 }
 
 export interface EvaluationRecord {
@@ -217,6 +242,37 @@ export interface EvaluationRecord {
   sample_count: number;
   parameters: Record<string, unknown> | null;
   created_at: string | null;
+}
+
+export type SplitStrategy = "random" | "target_group";
+
+export interface EvaluationRunRequest {
+  cell_line?: string | null;
+  timepoint?: number | null;
+  split_strategies?: SplitStrategy[];
+  n_folds?: number;
+  seed?: number;
+  k?: number;
+  n_neighbors?: number;
+  neighbor_weight?: number;
+  n_permutations?: number;
+}
+
+export interface FoldAudit {
+  n_folds: number;
+  n_items: number;
+  reference_test_disjoint: boolean;
+  each_item_tested_once: boolean;
+  groups_disjoint: boolean;
+  test_annotations_hidden: boolean;
+  queries: Record<string, number>;
+}
+
+export interface EvaluationRunResponse {
+  run_id: string;
+  results: EvaluationRecord[];
+  audit: Record<string, FoldAudit>;
+  notes: string[];
 }
 
 export interface EvaluationListResponse {

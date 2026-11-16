@@ -102,6 +102,19 @@ class RescueSearchRequest(ContextFilter):
         description="Subtract the matched control consensus (same cell line and timepoint) before scoring.",
     )
     top_k: int = Field(default=10, ge=1)
+    exclude_weak_responses: bool = Field(
+        default=True,
+        description="Drop compounds whose profile is not stronger than control wells produce by chance.",
+    )
+    min_response_percentile: float = Field(
+        default=0.95,
+        ge=0,
+        le=1,
+        description="Response strength cut-off, as a percentile of control pseudo-replicate strengths.",
+    )
+    exclude_stress_like: bool = Field(
+        default=False, description="Drop compounds flagged for cell loss or a generic stress-like profile."
+    )
 
     @model_validator(mode="after")
     def _one_signature_source(self) -> "RescueSearchRequest":

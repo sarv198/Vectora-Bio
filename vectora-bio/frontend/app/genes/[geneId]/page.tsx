@@ -41,6 +41,18 @@ export default function GeneDetailPage() {
               { header: "Type", cell: (row) => <Badge>{row.perturbation_type.toUpperCase()}</Badge> },
               { header: "Cell line", cell: (row) => row.cell_line },
               { header: "Timepoint", cell: (row) => formatHours(row.timepoint), align: "right" },
+              {
+                header: "",
+                cell: (row) => (
+                  <Link
+                    href={`/rescue?perturbation=${encodeURIComponent(row.perturbation_id)}`}
+                    className="text-xs text-accent hover:underline"
+                  >
+                    Find rescue compounds
+                  </Link>
+                ),
+                align: "right",
+              },
             ]}
           />
         </>

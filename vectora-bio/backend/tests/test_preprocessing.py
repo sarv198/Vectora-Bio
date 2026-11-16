@@ -317,6 +317,11 @@ def test_build_with_annotations_and_database(settings, raw_dir, tmp_path, client
     assert similar["predictions"][0]["candidate_id"] == "CMP-3"  # same synthetic direction
     rescue = client.post("/api/rescue/search", json={"perturbation_id": "ORF-1", "top_k": 3}).json()
     assert rescue["predictions"][0]["candidate_id"] in {"CMP-1", "CMP-3"}  # ORF-1 is the negative of that direction
+    # The build wrote well-level DMSO profiles, so every compound gets a response-strength percentile.
+    assert rescue["details"]["quality_checks"]["response_strength_available"] is True
+    top = rescue["predictions"][0]["candidate_annotations"]
+    assert top["response_percentile"] == 1.0  # synthetic effects are far above control noise
+    assert top["reversing_features"] and top["by_measurement"]
 
 
 def test_build_cli_dry_run_writes_nothing(settings, raw_dir, tmp_path, capsys):

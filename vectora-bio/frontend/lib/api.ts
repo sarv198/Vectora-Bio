@@ -3,6 +3,8 @@ import type {
   Compound,
   CompoundDetail,
   EvaluationListResponse,
+  EvaluationRunRequest,
+  EvaluationRunResponse,
   GeneDetail,
   GeneticPerturbation,
   HealthResponse,
@@ -109,4 +111,5 @@ export const api = {
   inferMoa: (body: MoaInferenceRequest) => post<AnalysisResponse>("/api/moa/infer", body),
   searchRescue: (body: RescueSearchRequest) => post<AnalysisResponse>("/api/rescue/search", body),
   listEvaluations: () => apiFetch<EvaluationListResponse>("/api/evaluation"),
+  runEvaluation: (body: EvaluationRunRequest) => post<EvaluationRunResponse>("/api/evaluation/run", body),
 };

@@ -62,3 +62,28 @@ def test_evaluate_moa_predictions_validation():
         evaluate_moa_predictions([], [])
     with pytest.raises(ValueError, match="missing labels"):
         evaluate_moa_predictions(["x", None], ["x", "y"])
+
+
+from app.core.evaluation import audit_folds, make_folds  # noqa: E402
+
+
+def test_make_folds_random_and_grouped():
+    ids = [f"c{i}" for i in range(11)]
+    folds = make_folds(ids, n_folds=3, seed=0)
+    assert sorted(item for _, test in folds for item in test) == sorted(ids)
+    assert all(set(reference).isdisjoint(test) for reference, test in folds)
+    assert make_folds(ids, 3, seed=0) == folds  # reproducible
+
+    groups = {f"c{i}": f"g{i // 2}" for i in range(10)}  # c10 has no group
+    grouped = make_folds(ids, n_folds=3, seed=1, groups=groups)
+    for reference, test in grouped:
+        assert {groups[i] for i in test if i in groups}.isdisjoint({groups[i] for i in reference if i in groups})
+    audit = audit_folds(grouped, groups)
+    assert audit["groups_disjoint"] and audit["n_items"] == 11
+
+    with pytest.raises(ValueError):
+        make_folds(ids[:2], n_folds=3)
+    with pytest.raises(AssertionError, match="both reference and test"):
+        audit_folds([(["a", "b"], ["b"])])
+    with pytest.raises(AssertionError, match="group"):
+        audit_folds([(["a"], ["b"])], {"a": "g", "b": "g"})

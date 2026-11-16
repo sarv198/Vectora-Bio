@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.core.features import describe_feature, group_contributions
 from app.core.moa_inference import (
     annotated_neighbor_count,
     fit_moa_confidence,
@@ -18,7 +19,15 @@ from app.core.moa_inference import (
     leave_one_out_moa_calls,
     split_moa_labels,
 )
-from app.core.reversal import rank_reversal_candidates
+from app.core.phenotype_quality import (
+    density_scores,
+    empirical_percentile,
+    generic_response_direction,
+    generic_response_scores,
+    pseudo_replicate_consensus,
+    strength_null,
+)
+from app.core.reversal import rank_reversal_candidates, reversal_contributions
 from app.core.similarity import (
     calculate_cosine_similarity,
     cross_similarity_background,
@@ -32,7 +41,7 @@ from app.core.target_prioritization import (
     rank_candidate_targets,
 )
 from app.data.loaders import ConsensusProfiles, check_feature_compatibility
-from app.data.profile_store import ProfileStore
+from app.data.profile_store import MODALITY_COLUMN, ProfileStore
 from app.db.models import AnalysisRunRecord, PredictionRecord
 from app.errors import DataNotLoadedError, FeatureMismatchError, InvalidQueryError, NotFoundError
 from app.schemas.common import ProfileType
@@ -55,6 +64,11 @@ logger = logging.getLogger(__name__)
 MAX_EVIDENCE_ITEMS = 5
 REPLICATE_COSINE_COLUMN = "Metadata_replicate_cosine"
 MOA_CALIBRATION_TOP_K = 5
+MAX_CONTRIBUTING_FEATURES = 8
+# Stress flags: denser cell loss than 99% of control pseudo-replicates, or among the 10% of
+# compounds most aligned with the generic response direction.
+STRESS_DENSITY_PERCENTILE = 0.99
+STRESS_GENERIC_PERCENTILE = 0.90
 
 
 def _check_top_k(settings: Settings, *values: int) -> None:
@@ -704,12 +718,93 @@ def infer_moa(
     return _record_run(db, settings, response)
 
 
+def _compound_quality(
+    store: ProfileStore, compounds: ConsensusProfiles, cell_line: str | None, timepoint: float | None
+) -> pd.DataFrame:
+    """Response strength, cell-density proxy and generic-response score for every compound (cached).
+
+    Strength and density are judged against pseudo-replicate consensus profiles built from the
+    matched control wells; the generic-response score against the compound population itself.
+    Percentile columns are NaN when well-level controls are unavailable.
+    """
+
+    def build() -> pd.DataFrame:
+        features = compounds.features
+        quality = pd.DataFrame(index=features.index)
+        quality["response_norm"] = np.linalg.norm(features.to_numpy(np.float64), axis=1)
+        density = density_scores(features)
+        quality["density_score"] = density if density is not None else np.nan
+        direction = generic_response_direction(features)
+        generic = generic_response_scores(features, direction)
+        quality["generic_cosine"] = generic
+        quality["generic_percentile"] = generic.rank(pct=True)
+        reproducibility = store.metadata_values(ProfileType.COMPOUND, REPLICATE_COSINE_COLUMN)
+        quality["replicate_cosine"] = reproducibility.reindex(features.index).astype(float)
+
+        wells = store.wells(ProfileType.CONTROL)
+        quality["response_percentile"] = np.nan
+        quality["density_percentile"] = np.nan
+        if wells is not None:
+            controls = wells[wells.get(MODALITY_COLUMN, pd.Series("compound", index=wells.index)) == "compound"]
+            if cell_line is not None:
+                controls = controls[controls["cell_line"].astype(str).str.casefold() == cell_line.casefold()]
+            if timepoint is not None:
+                controls = controls[np.isclose(controls["timepoint"].astype(float), timepoint)]
+            missing = [f for f in features.columns if f not in controls.columns]
+            if len(controls) >= 3 and not missing:
+                n_replicates = int(np.median(compounds.context["replicate_count"])) or 1
+                pseudo = pseudo_replicate_consensus(controls, list(features.columns), n_replicates)
+                quality["response_percentile"] = empirical_percentile(
+                    quality["response_norm"].to_numpy(), strength_null(pseudo)
+                )
+                pseudo_density = density_scores(pd.DataFrame(pseudo, columns=features.columns))
+                if density is not None and pseudo_density is not None:
+                    quality["density_percentile"] = empirical_percentile(
+                        quality["density_score"].to_numpy(), np.sort(pseudo_density.to_numpy())
+                    )
+        return quality
+
+    return store.memo((ProfileType.COMPOUND, ProfileType.CONTROL), ("compound_quality", cell_line, timepoint), build)
+
+
+def _stress_flags(row: pd.Series) -> list[str]:
+    flags = []
+    if row.get("density_percentile", np.nan) >= STRESS_DENSITY_PERCENTILE:
+        flags.append("cell_loss")
+    if row.get("generic_percentile", np.nan) >= STRESS_GENERIC_PERCENTILE:
+        flags.append("generic_response")
+    return flags
+
+
+def _feature_entries(values: pd.Series, signature: pd.Series, compound: pd.Series | None = None) -> list[dict]:
+    entries = []
+    for name, value in values.items():
+        info = describe_feature(str(name))
+        entry = {
+            "feature": str(name),
+            "label": info.label,
+            "value": round(float(value), 4),
+            "signature": round(float(signature[name]), 3),
+        }
+        if compound is not None:
+            entry["compound"] = round(float(compound[name]), 3)
+        entries.append(entry)
+    return entries
+
+
 def search_rescue(
     request: RescueSearchRequest, *, store: ProfileStore, db: Session, settings: Settings
 ) -> AnalysisResponse:
+    """Rank compounds whose profile opposes a perturbation signature, with filters and explanations.
+
+    Weak responses (no stronger than control noise) are excluded by default; cell-loss and
+    generic stress-like profiles are flagged (optionally excluded). For each candidate the score is
+    decomposed into per-feature contributions that sum to it.
+    """
     _check_top_k(settings, request.top_k)
     compounds = store.consensus(ProfileType.COMPOUND, request.cell_line, request.timepoint)
     compound_features = compounds.features
+    perturbation: dict[str, Any] = {}
 
     if request.perturbation_id is not None:
         genetic = store.consensus(ProfileType.GENETIC, request.cell_line, request.perturbation_timepoint)
@@ -719,12 +814,22 @@ def search_rescue(
         if request.perturbation_id not in genetic.features.index:
             raise NotFoundError(f"No genetic profile for perturbation '{request.perturbation_id}' in this context.")
         signature = genetic.features.loc[request.perturbation_id]
+        modality = store.modality(ProfileType.GENETIC, request.perturbation_id)
         if request.subtract_matched_controls:
             signature = signature - store.control_consensus(
-                *_query_context(genetic, request.perturbation_id),
-                modality=store.modality(ProfileType.GENETIC, request.perturbation_id),
+                *_query_context(genetic, request.perturbation_id), modality=modality
             )
         query_id = request.perturbation_id
+        cell, hours = _query_context(genetic, request.perturbation_id)
+        perturbation = {"perturbation_type": modality, "cell_line": cell, "timepoint": hours}
+        try:
+            info = metadata_service.perturbation_info(db)
+            if request.perturbation_id in info.index:
+                row = info.loc[request.perturbation_id]
+                perturbation.update(gene_id=row["gene_id"], gene_symbol=row["gene_symbol"])
+                perturbation["perturbation_type"] = modality or row["perturbation_type"]
+        except DataNotLoadedError:
+            pass
     else:
         signature = pd.Series(request.signature, dtype=np.float64)
         _require_features_match({"compound_profiles": compounds.feature_columns, "signature": list(signature.index)})
@@ -743,39 +848,125 @@ def search_rescue(
             compound_features.loc[ids] = compound_features.loc[ids] - control[compound_features.columns]
 
     try:
-        ranked = rank_reversal_candidates(signature, compound_features, top_k=request.top_k)
+        ranked = rank_reversal_candidates(signature, compound_features, top_k=len(compound_features))
     except ValueError as exc:
         raise InvalidQueryError(str(exc)) from exc
 
-    names = _annotation_map(metadata_service.compound_annotations(db), "compound_name")
-    predictions = [
-        Prediction(
-            query_id=query_id,
-            candidate_id=candidate.compound_id,
-            prediction_type=PredictionType.PHENOTYPIC_RESCUE,
-            score=candidate.score,
-            rank=candidate.rank,
-            supporting_evidence=[
-                EvidenceItem(
-                    evidence_type="phenotypic_reversal",
-                    description=(
-                        "Negative cosine between the compound profile and the perturbation signature"
-                        + (" after subtracting matched controls" if request.subtract_matched_controls else "")
-                        + (f" ({names[candidate.compound_id]})" if candidate.compound_id in names else "")
-                        + "."
-                    ),
-                    value=candidate.score,
-                    source_id=candidate.compound_id,
-                )
-            ],
+    quality = _compound_quality(store, compounds, request.cell_line, request.timepoint)
+    strength_available = bool(quality["response_percentile"].notna().any())
+    messages: list[str] = []
+    excluded = {"weak_response": 0, "stress_like": 0}
+    kept = []
+    for candidate in ranked:
+        row = quality.loc[candidate.compound_id]
+        if (
+            request.exclude_weak_responses
+            and strength_available
+            and not row["response_percentile"] >= request.min_response_percentile
+        ):
+            excluded["weak_response"] += 1
+            continue
+        if request.exclude_stress_like and _stress_flags(row):
+            excluded["stress_like"] += 1
+            continue
+        kept.append(candidate)
+    if request.exclude_weak_responses and not strength_available:
+        messages.append("Well-level control profiles are unavailable, so weak responses could not be filtered.")
+    if excluded["weak_response"]:
+        messages.append(
+            f"{excluded['weak_response']} of {len(ranked)} compounds excluded as weak responses "
+            "(no stronger than control noise)."
         )
-        for candidate in ranked
-    ]
+    if excluded["stress_like"]:
+        messages.append(f"{excluded['stress_like']} compounds excluded as cell-loss or stress-like.")
 
+    info_by_compound = _compound_info(metadata_service.compound_annotations(db))
+    signature_density = density_scores(signature.to_frame().T)
+    predictions = []
+    for rank, candidate in enumerate(kept[: request.top_k], start=1):
+        row = quality.loc[candidate.compound_id]
+        compound_profile = compound_features.loc[candidate.compound_id]
+        contributions = reversal_contributions(compound_profile, signature)
+        flags = _stress_flags(row)
+        name = info_by_compound.get(candidate.compound_id, {}).get("compound_name")
+        evidence = [
+            EvidenceItem(
+                evidence_type="phenotypic_reversal",
+                description=(
+                    "Negative cosine between the compound profile and the perturbation signature"
+                    + (" after subtracting matched controls." if request.subtract_matched_controls else ".")
+                ),
+                value=candidate.score,
+                source_id=candidate.compound_id,
+            )
+        ]
+        if not np.isnan(row["response_percentile"]):
+            evidence.append(
+                EvidenceItem(
+                    evidence_type="response_strength",
+                    description=(
+                        f"Response stronger than {row['response_percentile']:.0%} of control pseudo-replicates."
+                    ),
+                    value=float(row["response_percentile"]),
+                )
+            )
+        if "cell_loss" in flags:
+            evidence.append(
+                EvidenceItem(
+                    evidence_type="stress_flag",
+                    description="Cell-density features suggest cell loss (possible toxicity or arrested growth).",
+                    value=float(row["density_percentile"]),
+                )
+            )
+        if "generic_response" in flags:
+            evidence.append(
+                EvidenceItem(
+                    evidence_type="stress_flag",
+                    description="Profile follows the generic response shared by many compounds (often stress).",
+                    value=float(row["generic_cosine"]),
+                )
+            )
+        predictions.append(
+            Prediction(
+                query_id=query_id,
+                candidate_id=candidate.compound_id,
+                prediction_type=PredictionType.PHENOTYPIC_RESCUE,
+                score=candidate.score,
+                rank=rank,
+                candidate_name=name,
+                supporting_evidence=evidence,
+                candidate_annotations={
+                    "moa": info_by_compound.get(candidate.compound_id, {}).get("moa"),
+                    "response_percentile": _finite_or_none(row["response_percentile"]),
+                    "replicate_cosine": _finite_or_none(row["replicate_cosine"]),
+                    "density_percentile": _finite_or_none(row["density_percentile"]),
+                    "generic_cosine": _finite_or_none(row["generic_cosine"]),
+                    "stress_flags": flags,
+                    "reversing_features": _feature_entries(
+                        contributions[contributions > 0].nlargest(MAX_CONTRIBUTING_FEATURES),
+                        signature,
+                        compound_profile,
+                    ),
+                    "opposing_features": _feature_entries(
+                        contributions.nsmallest(3)[lambda s: s < 0], signature, compound_profile
+                    ),
+                    "by_measurement": {
+                        k: round(v, 4) for k, v in group_contributions(contributions, "measurement").items()
+                    },
+                    "by_channel": {k: round(v, 4) for k, v in group_contributions(contributions, "channel").items()},
+                },
+            )
+        )
+
+    largest = signature.abs().nlargest(MAX_CONTRIBUTING_FEATURES).index
     contexts = compounds.context[["cell_line", "timepoint"]].drop_duplicates()
     single = len(contexts) == 1
+    if signature_density is not None:
+        perturbation["signature_density_score"] = round(float(signature_density.iloc[0]), 3)
     response = AnalysisResponse(
         query_id=query_id,
+        query_name=perturbation.get("gene_symbol"),
+        query_annotations=perturbation,
         prediction_type=PredictionType.PHENOTYPIC_RESCUE,
         predictions=predictions,
         parameters={
@@ -784,10 +975,30 @@ def search_rescue(
             "signature_features": None if request.signature is None else len(request.signature),
         },
         summary=AnalysisSummary(
-            n_candidates=len(compound_features),
+            n_candidates=len(kept),
             n_features=len(compounds.feature_columns),
             cell_line=str(contexts.iloc[0]["cell_line"]) if single else None,
             timepoint=_safe_value(contexts.iloc[0]["timepoint"]) if single else None,
         ),
+        details={
+            "signature_norm": round(float(np.linalg.norm(signature.to_numpy())), 3),
+            "signature_top_features": [
+                {
+                    "feature": str(name),
+                    "label": describe_feature(str(name)).label,
+                    "value": round(float(signature[name]), 3),
+                }
+                for name in largest
+            ],
+            "excluded": excluded,
+            "n_compounds": len(ranked),
+            "quality_checks": {
+                "response_strength_available": strength_available,
+                "min_response_percentile": request.min_response_percentile,
+                "cell_loss_flag_percentile": STRESS_DENSITY_PERCENTILE,
+                "generic_flag_percentile": STRESS_GENERIC_PERCENTILE,
+            },
+        },
+        message=" ".join(messages) or None,
     )
     return _record_run(db, settings, response)

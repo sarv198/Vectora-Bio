@@ -1,9 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.data.profile_store import get_profile_store
-from app.db.session import get_session_factory
-from app.services.evaluation_service import run_moa_benchmark
 from tests import synthetic
 
 ANALYSIS_REQUESTS = [
@@ -296,12 +293,36 @@ def test_rescue_search(client, loaded_data):
     assert client.post("/api/rescue/search", json={"perturbation_id": "NOPE"}).status_code == 404
 
 
-def test_evaluation_results_after_benchmark(client, loaded_data):
-    with get_session_factory()() as db:
-        results = run_moa_benchmark(get_profile_store(), db, cell_line=None, timepoint=None, n_neighbors=3, k=2)
-    names = {r.metric_name for r in results}
-    assert {"moa_top1_accuracy", "mean_precision_at_2", "mean_recall_at_2", "mean_ndcg_at_2"} <= names
-    body = client.get("/api/evaluation").json()
-    assert len(body["results"]) == len(results)
-    assert body["message"] is None
-    assert body["results"][0]["parameters"]["n_neighbors"] == 3
+def test_rescue_explanations_and_filters(client, loaded_data):
+    body = client.post("/api/rescue/search", json={"perturbation_id": "GUIDE_G3", "top_k": 3}).json()
+    top = body["predictions"][0]
+    info = top["candidate_annotations"]
+    assert top["candidate_id"] == "CMPD_C" and top["candidate_name"] == "compound c"
+    values = [f["value"] for f in info["reversing_features"]]
+    assert values == sorted(values, reverse=True) and all(v > 0 for v in values)
+    assert info["reversing_features"][0]["feature"] == "feat_002"  # the axis GUIDE_G3 changes
+    assert body["query_name"] == "GENE3" and body["query_annotations"]["perturbation_type"] == "crispr"
+    assert body["details"]["signature_top_features"][0]["feature"] == "feat_002"
+    # The synthetic import has no well-level controls, so strength filtering is reported as unavailable.
+    assert body["details"]["quality_checks"]["response_strength_available"] is False
+    assert "could not be filtered" in body["message"]
+
+
+def test_evaluation_run_and_listing(client, loaded_data):
+    response = client.post("/api/evaluation/run", json={"n_folds": 2, "n_permutations": 3})
+    assert response.status_code == 200, response.json()
+    body = response.json()
+    names = {r["metric_name"] for r in body["results"]}
+    assert {"similarity.precision_at_10", "moa.top1_accuracy", "targets.hit_at_10"} <= names
+    models = {(r["metric_name"], r["parameters"]["model"]) for r in body["results"]}
+    assert ("moa.top1_accuracy", "baseline") in models and ("targets.hit_at_10", "phenotype_only") in models
+    for strategy in ("random", "target_group"):
+        audit = body["audit"][strategy]
+        assert audit["reference_test_disjoint"] and audit["each_item_tested_once"] and audit["test_annotations_hidden"]
+    assert body["audit"]["target_group"]["groups_disjoint"] is True
+    assert all(r["dataset_split"] == "test" and r["parameters"]["run_id"] == body["run_id"] for r in body["results"])
+
+    listing = client.get("/api/evaluation").json()
+    assert len(listing["results"]) == len(body["results"])
+    assert listing["message"] is None
+    assert client.post("/api/evaluation/run", json={"n_folds": 50}).status_code == 422

@@ -164,6 +164,22 @@ class ProfileStore:
             self._memo[full_key] = value
         return value
 
+    def wells(self, profile_type: ProfileType) -> pd.DataFrame | None:
+        """Normalized well-level profiles written by the Phase 1 build, or None if absent."""
+        path = self._settings.processed_dir / "wells" / f"{profile_type.value}_wells.parquet"
+        if not path.is_file():
+            return None
+        mtime = path.stat().st_mtime
+        key = ("wells", profile_type, mtime)
+        with self._lock:
+            cached = self._memo.get(key)
+        if cached is None:
+            cached = pd.read_parquet(path)
+            with self._lock:
+                self._memo = {k: v for k, v in self._memo.items() if not (k[0] == "wells" and k[1] == profile_type)}
+                self._memo[key] = cached
+        return cached  # type: ignore[return-value]
+
     def metadata_values(self, profile_type: ProfileType, column: str) -> pd.Series:
         """First non-null value of a ``Metadata_*`` column per perturbation; empty if the file lacks it."""
         frame = self.load(profile_type)

@@ -51,3 +51,19 @@ def rank_reversal_candidates(
 
 def _reversal_scores(signature: Vector, profiles: Matrix) -> NDArray[np.float64]:
     return calculate_cosine_similarity(signature, profiles)
+
+
+def reversal_contributions(compound_profile: pd.Series, perturbation_signature: pd.Series) -> pd.Series:
+    """Per-feature terms of the reversal score; they sum exactly to ``calculate_reversal_score``.
+
+    Term i is ``-c_i * s_i / (|c| |s|)``: positive where the compound moves feature i opposite to
+    the perturbation (driving reversal), negative where it moves it the same way.
+    """
+    signature = perturbation_signature.astype(np.float64)
+    compound = compound_profile.astype(np.float64).reindex(signature.index)
+    if compound.isna().any():
+        raise ValueError("compound_profile lacks features present in the signature.")
+    denominator = np.linalg.norm(compound.to_numpy()) * np.linalg.norm(signature.to_numpy())
+    if denominator == 0:
+        raise ValueError("Zero-norm compound profile or signature.")
+    return -(compound * signature) / denominator

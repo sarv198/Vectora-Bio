@@ -7,8 +7,8 @@ Vectora Bio analyzes high-dimensional cellular phenotypic profiles (e.g. process
 | Compound-to-compound phenotypic similarity | `POST /api/similarity/compounds` | Cosine similarity with score percentiles, known MoA/targets, reproducibility filters (Phase 2) |
 | Compound-to-gene matching, target prioritization | `POST /api/targets/match`, `POST /api/targets/prioritize` | Reagent matching with percentiles; gene priority from phenotype + targets of similar compounds (Phase 3) |
 | Similarity-based MoA inference | `POST /api/moa/infer` | Similarity-weighted vote with leave-one-out calibrated confidence (Phase 4) |
-| Phenotypic rescue / perturbation reversal | `POST /api/rescue/search` | Negative cosine vs. control-subtracted signature |
-| Model evaluation | `GET /api/evaluation` + `python -m app.pipeline.evaluate_moa` | Leave-one-out MoA + retrieval metrics |
+| Phenotypic rescue / perturbation reversal | `POST /api/rescue/search` | Reversal score with per-feature explanations, weak-response filter, cell-loss/stress flags (Phase 5) |
+| Model evaluation | `POST /api/evaluation/run`, `GET /api/evaluation`, `python -m app.pipeline.evaluate` | 5-fold held-out benchmarks vs. baselines, random and unseen-target splits, leakage audit (Phase 6) |
 
 These are baseline methods, not tuned models. No endpoint returns placeholder results: when the data a request needs has not been imported, it returns **HTTP 503** with `error: "data_not_loaded"` and the list of missing datasets.
 
@@ -110,7 +110,7 @@ python -m app.pipeline.import_metadata genetic --input ..\data\raw\crispr.csv.gz
   --column-map config\genetic_metadata_map.example.json --set perturbation_type=crispr --set cell_line=U2OS --set timepoint=96
 
 # Evaluation (stores metrics shown at /api/evaluation)
-python -m app.pipeline.evaluate_moa --cell-line U2OS --timepoint 48
+python -m app.pipeline.evaluate
 ```
 
 Every command accepts `--help` and `--dry-run` (except evaluation). Validation errors are printed with examples of the offending rows or columns.
