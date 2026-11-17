@@ -1,6 +1,5 @@
 "use client";
 
-import { Crosshair } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
@@ -67,11 +66,11 @@ function TargetsView() {
 
   return (
     <AnalysisPage
-      title="Target prioritization"
-      description="Which genetic perturbations look like this compound, and which genes have the strongest combined evidence as candidate targets."
-      icon={<Crosshair className="h-5 w-5" />}
+      title="Drug-to-gene matching"
+      description="Find genes whose knockout or overexpression changes cells the way a compound does, and rank them as candidate targets."
       scoreLabel="Priority"
       candidateLabel="Gene"
+      submitLabel="Match genes"
       loading={prioritized.loading || matched.loading}
       error={prioritized.error}
       response={prioritized.data}
@@ -79,23 +78,35 @@ function TargetsView() {
       renderResults={(response) => (
         <TargetResults prioritized={response} matches={matched.data} matchesError={matched.error} />
       )}
-      formFields={
+      primary={
+        <Field label="Query compound">
+          <CompoundPicker value={compoundId} onChange={setCompoundId} />
+        </Field>
+      }
+      parameters={
         <>
-          <Field label="Compound">
-            <CompoundPicker value={compoundId} onChange={setCompoundId} />
+          <Field
+            label="Weight of similar compounds"
+            hint="0 ranks by phenotype alone, which generalises better to novel chemistry (see Evaluation)."
+          >
+            <TextInput type="number" min={0} step={0.5} value={neighborWeight} onChange={(e) => setNeighborWeight(e.target.value)} />
+          </Field>
+          <Field label="Similar compounds considered">
+            <TextInput type="number" min={1} max={100} value={neighbors} onChange={(e) => setNeighbors(e.target.value)} />
           </Field>
           <ContextFields values={context} onChange={setContext} />
-          <Field label="Genetic timepoint (h)" hint="Optional. Genetic screens often use a different timepoint.">
+          <Field label="Genetic timepoint (h)" hint="Genetic screens often use a different timepoint.">
             <TextInput
               type="number"
               min={0}
               step="any"
+              placeholder="Any"
               value={geneticTimepoint}
               onChange={(e) => setGeneticTimepoint(e.target.value)}
             />
           </Field>
           <fieldset className="space-y-1.5">
-            <legend className="mb-1 text-sm font-medium text-ink-2">Perturbation types</legend>
+            <legend className="mb-1.5 text-[12.5px] font-medium text-ink-2">Reagent types</legend>
             {TYPES.map((type) => (
               <Checkbox
                 key={type.value}
@@ -104,33 +115,30 @@ function TargetsView() {
                 onChange={() => toggleType(type.value)}
               />
             ))}
-            <p className="text-xs text-ink-3">None selected = all types.</p>
+            <p className="text-[12px] text-ink-3">None selected uses all types.</p>
           </fieldset>
-          <Checkbox label="Rank by absolute similarity" checked={absolute} onChange={(e) => setAbsolute(e.target.checked)} />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Neighbour weight" hint="0 = phenotype only">
-              <TextInput type="number" min={0} step={0.5} value={neighborWeight} onChange={(e) => setNeighborWeight(e.target.value)} />
-            </Field>
-            <Field label="Neighbours">
-              <TextInput type="number" min={1} max={100} value={neighbors} onChange={(e) => setNeighbors(e.target.value)} />
-            </Field>
-          </div>
+          <Checkbox
+            label="Match by absolute similarity"
+            hint="Counts strongly opposite profiles as matches too."
+            checked={absolute}
+            onChange={(e) => setAbsolute(e.target.checked)}
+          />
         </>
       }
       method={
         <>
           <p>
-            <strong>Matching:</strong> the compound&apos;s profile is compared with every CRISPR and ORF profile. Each
-            cosine is placed among all compound-reagent pairs (&ldquo;Top x%&rdquo;).
+            <strong className="font-medium text-ink">Matching.</strong> The compound&apos;s profile is compared with every
+            CRISPR and ORF profile. Each cosine is placed among all compound-to-reagent pairs, giving a percentile.
           </p>
           <p>
-            <strong>Prioritization</strong> combines, per gene, the best reagent&apos;s match percentile with the share
-            of the most similar compounds that are annotated to act on that gene.
+            <strong className="font-medium text-ink">Prioritisation.</strong> Per gene, the best reagent&apos;s match
+            percentile is combined with the share of the most similar compounds annotated to act on that gene:
+            priority = (phenotype + w x similar-compound share) / (1 + w).
           </p>
           <p>
-            The query&apos;s own annotated targets never enter the score; they are only flagged so you can see where
-            they rank. Default weights were chosen on the JUMP pilot and will be validated on held-out compounds in
-            Phase 6.
+            The query&apos;s own annotated targets never enter the score; they are only marked so you can see where they
+            rank.
           </p>
         </>
       }

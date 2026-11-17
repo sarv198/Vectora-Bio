@@ -43,6 +43,13 @@ class DatabaseUnavailableError(VectoraError):
     error_code = "database_unavailable"
 
 
+class ImagesUnavailableError(VectoraError):
+    """Raw microscopy images could not be fetched (offline, disabled, or source error)."""
+
+    status_code = 503
+    error_code = "images_unavailable"
+
+
 class NotFoundError(VectoraError):
     status_code = 404
     error_code = "not_found"

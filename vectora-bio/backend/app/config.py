@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     consensus_method: Literal["median", "mean"] = "median"
     max_top_k: int = Field(default=500, ge=1)
 
+    # Raw microscopy fields are fetched on demand (one well/site at a time) from the public
+    # Cell Painting Gallery and cached under data/raw/images/. Nothing is fetched in bulk.
+    cell_images_enabled: bool = True
+    cell_image_bucket_url: str = "https://cellpainting-gallery.s3.amazonaws.com"
+    cell_image_prefix: str = "cpg0000-jump-pilot/source_4/images/2020_11_04_CPJUMP1/images/"
+    cell_image_timeout_s: int = Field(default=60, ge=1)
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

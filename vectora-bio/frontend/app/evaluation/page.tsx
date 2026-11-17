@@ -1,11 +1,32 @@
 "use client";
 
-import { BarChart3, CheckCircle2, Info, Play, XCircle } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { ApiErrorNotice } from "@/components/ApiErrorNotice";
 import { BenchmarkChart, type BenchmarkSeries } from "@/components/BenchmarkChart";
-import { Button, Card, Checkbox, EmptyState, Field, LoadingState, PageHeader, TextInput } from "@/components/ui";
+import { Em, Findings } from "@/components/QuerySummary";
+import {
+  Button,
+  Checkbox,
+  EmptyState,
+  Field,
+  InfoTip,
+  LoadingState,
+  Notice,
+  PageHeader,
+  Panel,
+  Section,
+  Select,
+  TABLE,
+  TD,
+  TH,
+  THEAD,
+  TR,
+  TableFrame,
+  Tabs,
+  TextInput,
+} from "@/components/ui";
 import { api } from "@/lib/api";
 import { formatCount, optionalNumber } from "@/lib/format";
 import { useApiMutation, useApiQuery } from "@/lib/hooks";
@@ -16,21 +37,28 @@ const STRATEGIES: { value: SplitStrategy; label: string; hint: string }[] = [
   {
     value: "target_group",
     label: "Unseen targets",
-    hint: "Compounds sharing a designed target are held out together: tests generalization to new targets.",
+    hint: "Compounds sharing a designed target are held out together: tests generalisation to new targets.",
   },
 ];
 
-const TASKS: { key: string; title: string; question: string }[] = [
+const TASKS: { key: string; title: string; question: string; headline: string[] }[] = [
   {
     key: "similarity",
     title: "Compound similarity",
-    question: "Do a held-out compound's nearest neighbours share its MoA?",
+    question: "Do a held-out compound's nearest neighbours share its mechanism?",
+    headline: ["recall_at_10", "precision_at_10"],
   },
-  { key: "moa", title: "MoA inference", question: "Is a held-out compound's hidden MoA recovered?" },
+  {
+    key: "moa",
+    title: "Mechanism of action",
+    question: "Is a held-out compound's hidden mechanism recovered?",
+    headline: ["top1_accuracy_recoverable", "top1_accuracy"],
+  },
   {
     key: "targets",
-    title: "Target prioritization",
-    question: "Does a held-out compound's annotated target rank in the top of 160 genes?",
+    title: "Drug-to-gene matching",
+    question: "Does a held-out compound's annotated target rank among the top genes?",
+    headline: ["hit_at_10", "recall_at_10"],
   },
 ];
 
@@ -60,7 +88,7 @@ function metricLabel(metric: string): string {
 }
 
 function pct(value: number | undefined): string {
-  return value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
+  return value === undefined ? "n/a" : `${(value * 100).toFixed(1)}%`;
 }
 
 interface Row {
@@ -68,7 +96,7 @@ interface Row {
   values: Record<string, EvaluationRecord>;
 }
 
-function TaskCard({ task, records }: { task: (typeof TASKS)[number]; records: EvaluationRecord[] }) {
+function taskRows(records: EvaluationRecord[]): Row[] {
   const rows: Row[] = [];
   for (const record of records) {
     const metric = String(record.parameters?.metric ?? record.metric_name.split(".")[1]);
@@ -79,9 +107,17 @@ function TaskCard({ task, records }: { task: (typeof TASKS)[number]; records: Ev
     }
     row.values[String(record.parameters?.model)] = record;
   }
-  const models = ["combined", "method", "phenotype_only", "baseline"].filter((m) => rows.some((r) => r.values[m]));
+  return rows;
+}
+
+function modelsOf(rows: Row[]): string[] {
+  return ["combined", "method", "phenotype_only", "baseline"].filter((m) => rows.some((r) => r.values[m]));
+}
+
+function TaskSection({ task, records }: { task: (typeof TASKS)[number]; records: EvaluationRecord[] }) {
+  const rows = taskRows(records);
+  const models = modelsOf(rows);
   const methodKeys = models.filter((m) => m !== "baseline");
-  const series = models.map((m) => MODELS[m]);
   const chartData = rows.map((row) => ({
     metric: metricLabel(row.metric),
     ...Object.fromEntries(models.map((m) => [m, row.values[m]?.metric_value ?? 0])),
@@ -91,61 +127,90 @@ function TaskCard({ task, records }: { task: (typeof TASKS)[number]; records: Ev
   const baseline = rows[0]?.values.baseline?.evaluation_method;
 
   return (
-    <Card title={task.title} actions={<span className="text-xs text-ink-3">{formatCount(n)} held-out queries</span>}>
-      <p className="mb-3 text-sm text-ink-2">{task.question}</p>
-      <BenchmarkChart data={chartData} series={series} />
-      <div className="-mx-4 mt-3 overflow-x-auto border-t border-line">
-        <table className="w-full text-sm">
-          <thead className="border-b border-line text-left text-xs text-ink-3">
-            <tr>
-              <th className="px-4 py-2 font-medium">Metric</th>
-              {models.map((m) => (
-                <th key={m} className="px-3 py-2 text-right font-medium">
-                  {MODELS[m].label}
-                </th>
-              ))}
-              <th className="px-4 py-2 text-right font-medium" title="Best method ÷ baseline">
-                vs. baseline
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const best = Math.max(...methodKeys.map((m) => row.values[m]?.metric_value ?? 0));
-              const base = row.values.baseline?.metric_value;
-              const lift = base ? best / base : null;
-              return (
-                <tr key={row.metric} className="border-b border-line last:border-0">
-                  <td className="px-4 py-1.5">{metricLabel(row.metric)}</td>
-                  {models.map((m) => {
-                    const record = row.values[m];
-                    const std = record?.parameters?.fold_std as number | null | undefined;
-                    return (
-                      <td key={m} className="tabular px-3 py-1.5 text-right">
-                        {pct(record?.metric_value)}
-                        {typeof std === "number" && (
-                          <span className="text-[11px] text-ink-3"> ±{(std * 100).toFixed(1)}</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="tabular px-4 py-1.5 text-right font-medium">
-                    {lift === null ? "—" : `${lift.toFixed(1)}×`}
-                  </td>
+    <Section title={task.title} description={task.question} actions={`${formatCount(n)} held-out queries`}>
+      <div className="grid gap-8 xl:grid-cols-2">
+        <BenchmarkChart data={chartData} series={models.map((m) => MODELS[m])} />
+        <div>
+          <TableFrame>
+            <table className={TABLE}>
+              <thead className={THEAD}>
+                <tr>
+                  <th className={TH}>Metric</th>
+                  {models.map((m) => (
+                    <th key={m} className={`${TH.replace("whitespace-nowrap", "")} text-right align-bottom`}>
+                      <span className="inline-flex items-start justify-end gap-1.5">
+                        <span className="mt-[5px] h-2 w-2 shrink-0 rounded-[1px]" style={{ background: MODELS[m].color }} aria-hidden />
+                        {MODELS[m].label}
+                      </span>
+                    </th>
+                  ))}
+                  <th className={`${TH} text-right`}>
+                    <span className="inline-flex items-center gap-1">
+                      Lift
+                      <InfoTip side="bottom">Best method divided by the baseline.</InfoTip>
+                    </span>
+                  </th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const best = Math.max(...methodKeys.map((m) => row.values[m]?.metric_value ?? 0));
+                  const base = row.values.baseline?.metric_value;
+                  const lift = base ? best / base : null;
+                  return (
+                    <tr key={row.metric} className={TR}>
+                      <td className={`${TD} py-2 text-ink-2`}>{metricLabel(row.metric)}</td>
+                      {models.map((m) => {
+                        const record = row.values[m];
+                        const std = record?.parameters?.fold_std as number | null | undefined;
+                        return (
+                          <td key={m} className={`${TD} tabular py-2 text-right ${m === "baseline" ? "text-ink-3" : "text-ink"}`}>
+                            {pct(record?.metric_value)}
+                            {typeof std === "number" && (
+                              <span className="block text-[11.5px] text-ink-3">±{(std * 100).toFixed(1)}</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className={`${TD} tabular py-2 text-right font-medium text-ink`}>
+                        {lift === null ? "n/a" : `${lift.toFixed(1)}x`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </TableFrame>
+          <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
+            Method: {method}. Baseline: {baseline}. ± is the standard deviation across folds.
+          </p>
+        </div>
       </div>
-      <p className="mt-2 text-[11px] text-ink-3">
-        Method: {method}. Baseline: {baseline}. ± is the standard deviation across folds.
-      </p>
-    </Card>
+    </Section>
   );
 }
 
-function AuditCard({ audit, strategy }: { audit: FoldAudit | undefined; strategy: SplitStrategy }) {
+function headline(task: (typeof TASKS)[number], records: EvaluationRecord[]) {
+  const rows = taskRows(records);
+  const row = task.headline.map((m) => rows.find((r) => r.metric === m)).find(Boolean) ?? rows[0];
+  if (!row) return null;
+  const methods = modelsOf(rows).filter((m) => m !== "baseline");
+  const bestKey = methods.reduce(
+    (best, m) => ((row.values[m]?.metric_value ?? 0) > (row.values[best]?.metric_value ?? 0) ? m : best),
+    methods[0],
+  );
+  const value = row.values[bestKey]?.metric_value;
+  const base = row.values.baseline?.metric_value;
+  return (
+    <>
+      {task.title}: <Em>{pct(value)}</Em> {metricLabel(row.metric)}
+      {methods.length > 1 ? ` (${MODELS[bestKey].label.toLowerCase()})` : ""} against {pct(base)} for the baseline
+      {base ? `, ${(value! / base).toFixed(1)}x higher` : ""}.
+    </>
+  );
+}
+
+function Audit({ audit, strategy }: { audit: FoldAudit | undefined; strategy: SplitStrategy }) {
   if (!audit) return null;
   const checks: [string, boolean][] = [
     ["Reference and test compounds never overlap", audit.reference_test_disjoint],
@@ -154,23 +219,27 @@ function AuditCard({ audit, strategy }: { audit: FoldAudit | undefined; strategy
   ];
   if (strategy === "target_group") checks.push(["No designed target on both sides of a split", audit.groups_disjoint]);
   return (
-    <Card title="Leakage audit">
-      <ul className="space-y-1 text-sm">
+    <Section
+      title="Leakage audit"
+      description={`${audit.n_folds}-fold cross-validation over ${audit.n_items} compounds, checked on every run.`}
+    >
+      <ul className="divide-y divide-line border-y border-line text-[13.5px]">
         {checks.map(([label, ok]) => (
-          <li key={label} className="flex items-center gap-2">
+          <li key={label} className="flex items-center justify-between gap-4 py-2">
+            <span className="text-ink-2">{label}</span>
             {ok ? (
-              <CheckCircle2 className="h-4 w-4 text-ok" aria-label="passed" />
+              <span className="inline-flex items-center gap-1 text-ok">
+                <Check className="h-4 w-4" aria-hidden /> Passed
+              </span>
             ) : (
-              <XCircle className="h-4 w-4 text-danger" aria-label="failed" />
+              <span className="inline-flex items-center gap-1 text-danger">
+                <X className="h-4 w-4" aria-hidden /> Failed
+              </span>
             )}
-            {label}
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-ink-3">
-        {audit.n_folds}-fold cross-validation over {audit.n_items} compounds.
-      </p>
-    </Card>
+    </Section>
   );
 }
 
@@ -197,7 +266,8 @@ export default function EvaluationPage() {
   const activeStrategy = available.some((s) => s.value === strategy) ? strategy : (available[0]?.value ?? "random");
   const shown = runRecords.filter((r) => r.parameters?.split_strategy === activeStrategy);
   const audit = shown[0]?.parameters?.audit as FoldAudit | undefined;
-  const runDate = runRecords[0]?.created_at ? new Date(runRecords[0].created_at).toLocaleString() : null;
+  const runDate = (records: EvaluationRecord[]) =>
+    records[0]?.created_at ? new Date(records[0].created_at).toLocaleString() : "";
 
   const run = async () => {
     await runner.run({
@@ -212,116 +282,99 @@ export default function EvaluationPage() {
   return (
     <>
       <PageHeader
+        context="Analysis"
         title="Evaluation"
-        description="Held-out benchmarks: every prediction is made for compounds removed from the reference set, then scored against their hidden annotations and compared with a baseline."
-        icon={<BarChart3 className="h-5 w-5" />}
+        description="Every method is tested on compounds removed from the reference set, scored against their hidden annotations, and compared with a baseline."
       />
-      <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <div className="space-y-4">
-          <Card title="Run benchmarks">
-            <div className="space-y-3">
-              <fieldset className="space-y-1.5">
-                <legend className="mb-1 text-sm font-medium text-ink-2">Split strategies</legend>
-                {STRATEGIES.map((s) => (
-                  <Checkbox
-                    key={s.value}
-                    label={s.label}
-                    title={s.hint}
-                    checked={strategies.includes(s.value)}
-                    onChange={() =>
-                      setStrategies((current) =>
-                        current.includes(s.value) ? current.filter((v) => v !== s.value) : [...current, s.value],
-                      )
-                    }
-                  />
-                ))}
-              </fieldset>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Folds">
-                  <TextInput type="number" min={2} max={20} value={folds} onChange={(e) => setFolds(e.target.value)} />
-                </Field>
-                <Field label="Seed">
-                  <TextInput type="number" value={seed} onChange={(e) => setSeed(e.target.value)} />
-                </Field>
-              </div>
-              <Button onClick={run} loading={runner.loading} disabled={strategies.length === 0} className="w-full">
-                <Play className="h-4 w-4" aria-hidden /> Run benchmarks
-              </Button>
-              <p className="text-xs text-ink-3">Takes about 15 seconds on the JUMP pilot. Results are saved.</p>
-            </div>
-          </Card>
-          {runs.length > 1 && (
-            <Card title="Previous runs">
-              <ul className="space-y-1 text-sm">
-                {runs.map(([id, records]) => (
-                  <li key={id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRun(id)}
-                      className={`w-full rounded px-2 py-1 text-left hover:bg-surface-2 ${id === runId ? "bg-accent-soft text-accent" : "text-ink-2"}`}
-                    >
-                      <span className="font-mono text-xs">{id}</span>
-                      <span className="block text-xs text-ink-3">
-                        {records[0]?.created_at ? new Date(records[0].created_at).toLocaleString() : ""}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-        </div>
 
-        <div className="min-w-0 space-y-4">
-          {runner.error && <ApiErrorNotice error={runner.error} />}
-          {error ? (
-            <ApiErrorNotice error={error} />
-          ) : loading && !data ? (
-            <LoadingState />
-          ) : runRecords.length === 0 ? (
-            <EmptyState title="No benchmark results yet">Run the benchmarks to measure every module on held-out compounds.</EmptyState>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div role="tablist" className="flex gap-1 border-b border-line">
-                  {available.map((s) => (
-                    <button
-                      key={s.value}
-                      role="tab"
-                      type="button"
-                      aria-selected={activeStrategy === s.value}
-                      title={s.hint}
-                      onClick={() => setStrategy(s.value)}
-                      className={`-mb-px border-b-2 px-3 py-2 text-sm ${
-                        activeStrategy === s.value
-                          ? "border-accent font-medium text-ink"
-                          : "border-transparent text-ink-3 hover:text-ink"
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-xs text-ink-3">
-                  Run <span className="font-mono">{runId}</span>
-                  {runDate ? ` · ${runDate}` : ""}
-                </span>
-              </div>
-              {activeStrategy === "target_group" && (
-                <p className="flex items-start gap-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink-2">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                  JUMP-Target pairs two compounds per target. Holding both out shows how the methods do on targets the
-                  reference set has never seen, the harder and more realistic case for a new compound.
-                </p>
-              )}
-              {TASKS.map((task) => {
-                const records = shown.filter((r) => r.parameters?.task === task.key);
-                return records.length ? <TaskCard key={task.key} task={task} records={records} /> : null;
-              })}
-              <AuditCard audit={audit} strategy={activeStrategy} />
-            </>
-          )}
+      <Panel>
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-4 p-4">
+          <fieldset className="flex flex-wrap gap-x-5 gap-y-2">
+            <legend className="mb-1.5 text-[12.5px] font-medium text-ink-2">Split strategies</legend>
+            {STRATEGIES.map((s) => (
+              <Checkbox
+                key={s.value}
+                label={s.label}
+                title={s.hint}
+                checked={strategies.includes(s.value)}
+                onChange={() =>
+                  setStrategies((current) =>
+                    current.includes(s.value) ? current.filter((v) => v !== s.value) : [...current, s.value],
+                  )
+                }
+              />
+            ))}
+          </fieldset>
+          <Field label="Folds" className="w-20">
+            <TextInput type="number" min={2} max={20} value={folds} onChange={(e) => setFolds(e.target.value)} />
+          </Field>
+          <Field label="Seed" className="w-20">
+            <TextInput type="number" value={seed} onChange={(e) => setSeed(e.target.value)} />
+          </Field>
+          <div className="flex items-center gap-3 sm:ml-auto">
+            <span className="text-[12px] text-ink-3">About 15 seconds; results are saved.</span>
+            <Button onClick={run} loading={runner.loading} disabled={strategies.length === 0}>
+              Run benchmarks
+            </Button>
+          </div>
         </div>
+      </Panel>
+
+      <div className="mt-9 space-y-9">
+        {runner.error && <ApiErrorNotice error={runner.error} />}
+        {error ? (
+          <ApiErrorNotice error={error} />
+        ) : loading && !data ? (
+          <LoadingState />
+        ) : runRecords.length === 0 ? (
+          <EmptyState title="No benchmark results yet">Run the benchmarks to measure every method on held-out compounds.</EmptyState>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="min-w-[16rem] flex-1">
+                <Tabs
+                  value={activeStrategy}
+                  onChange={setStrategy}
+                  options={available.map((s) => ({ value: s.value, label: s.label, title: s.hint }))}
+                />
+              </div>
+              {runs.length > 1 ? (
+                <label className="flex items-center gap-2 text-[12.5px] text-ink-3">
+                  Run
+                  <Select value={runId ?? ""} onChange={(e) => setSelectedRun(e.target.value)} className="h-7 w-auto text-[12.5px]">
+                    {runs.map(([id, records]) => (
+                      <option key={id} value={id}>
+                        {runDate(records)}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              ) : (
+                <span className="text-[12.5px] text-ink-3">Run of {runDate(runRecords)}</span>
+              )}
+            </div>
+
+            {activeStrategy === "target_group" && (
+              <Notice>
+                JUMP-Target pairs two compounds per target. Holding both out shows how the methods do on targets the
+                reference set has never seen, the harder and more realistic case for a new compound.
+              </Notice>
+            )}
+
+            <Findings
+              items={TASKS.map((task) => {
+                const records = shown.filter((r) => r.parameters?.task === task.key);
+                return records.length ? headline(task, records) : null;
+              })}
+            />
+
+            {TASKS.map((task) => {
+              const records = shown.filter((r) => r.parameters?.task === task.key);
+              return records.length ? <TaskSection key={task.key} task={task} records={records} /> : null;
+            })}
+            <Audit audit={audit} strategy={activeStrategy} />
+          </>
+        )}
       </div>
     </>
   );

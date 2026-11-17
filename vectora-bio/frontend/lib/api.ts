@@ -10,6 +10,10 @@ import type {
   HealthResponse,
   MoaInferenceRequest,
   Page,
+  PlateLayout,
+  PlateSummary,
+  ProfileComparison,
+  ProfileOverview,
   RescueSearchRequest,
   SimilarityRequest,
   TargetMatchRequest,
@@ -112,4 +116,37 @@ export const api = {
   searchRescue: (body: RescueSearchRequest) => post<AnalysisResponse>("/api/rescue/search", body),
   listEvaluations: () => apiFetch<EvaluationListResponse>("/api/evaluation"),
   runEvaluation: (body: EvaluationRunRequest) => post<EvaluationRunResponse>("/api/evaluation/run", body),
+  profileOverview: (type: "compound" | "genetic", id: string) =>
+    apiFetch<ProfileOverview>(`/api/profiles/${type}/${encodeURIComponent(id)}`),
+  compareProfiles: (params: {
+    first_type: string;
+    first_id: string;
+    second_type: string;
+    second_id: string;
+    subtract_controls?: boolean;
+  }) => apiFetch<ProfileComparison>(`/api/profiles/compare${buildQuery(params)}`),
+  listPlates: () => apiFetch<PlateSummary[]>("/api/plates"),
+  plateLayout: (plate: string) => apiFetch<PlateLayout>(`/api/plates/${encodeURIComponent(plate)}`),
 };
+
+export interface WellImageParams {
+  plate: string;
+  well: string;
+  field: number;
+  channels: string[];
+  size?: number;
+  /** Same-plate well whose intensities set the display range (normally a control well). */
+  ref?: string | null;
+  grayscale?: boolean;
+}
+
+/** URL of one rendered microscopy field (PNG), for use in <img src>. */
+export function wellImageUrl({ plate, well, field, channels, size = 540, ref, grayscale }: WellImageParams): string {
+  return `${API_BASE_URL}/api/images/${encodeURIComponent(plate)}/${encodeURIComponent(well)}${buildQuery({
+    field,
+    channels: channels.join(","),
+    size,
+    ref: ref ?? null,
+    grayscale: grayscale ? true : null,
+  })}`;
+}

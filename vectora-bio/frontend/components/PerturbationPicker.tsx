@@ -18,6 +18,26 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
   const listId = useId();
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // A preset reagent id (e.g. from a link) shows its gene symbol once it is known.
+  useEffect(() => {
+    if (!value || selected) return;
+    let cancelled = false;
+    api
+      .listGenes({ search: value, limit: 5 })
+      .then((page) => {
+        const match = page.items.find((item) => item.perturbation_id === value);
+        if (!cancelled && match) {
+          setSelected(match);
+          setText(match.gene_symbol);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // Runs for the initial value only; later changes come from this component.
+  }, []);
+
   useEffect(() => {
     const query = text.trim();
     if (!open || query.length < 2 || (selected && query === selected.gene_symbol)) {
@@ -51,7 +71,7 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
 
   return (
     <div className="relative">
-      <Search className="pointer-events-none absolute top-2 left-2.5 h-4 w-4 text-ink-3" aria-hidden />
+      <Search className="pointer-events-none absolute top-2 left-2.5 h-4 w-4 text-ink-3" strokeWidth={1.75} aria-hidden />
       <input
         role="combobox"
         aria-expanded={open && options.length > 0}
@@ -86,10 +106,10 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
             setOpen(false);
           }
         }}
-        className="w-full rounded-md border border-line bg-surface py-1.5 pr-3 pl-8 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+        className="h-8 w-full rounded-md border border-line-strong bg-surface pr-3 pl-8 text-[13.5px] text-ink placeholder:text-ink-3 hover:border-ink-3 focus:border-accent focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none"
       />
       {selected && (
-        <p className="mt-1 truncate text-[11px] text-ink-3">
+        <p className="mt-1 truncate text-[12px] text-ink-3">
           {selected.perturbation_type.toUpperCase()} · <span className="font-mono">{selected.perturbation_id}</span> ·{" "}
           {selected.timepoint} h
         </p>
@@ -98,7 +118,7 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-line bg-surface py-1 shadow-lg"
+          className="absolute z-30 mt-1 max-h-80 w-full overflow-auto rounded-md border border-line bg-surface py-1 shadow-[0_6px_20px_rgba(0,0,0,0.08)]"
           onMouseDown={() => blurTimer.current && clearTimeout(blurTimer.current)}
         >
           {options.map((item, index) => (
@@ -111,9 +131,9 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
                 event.preventDefault();
                 choose(item);
               }}
-              className={`cursor-pointer px-3 py-1.5 text-sm ${index === active ? "bg-accent-soft" : ""}`}
+              className={`cursor-pointer px-3 py-1.5 text-[13.5px] ${index === active ? "bg-surface-2" : ""}`}
             >
-              <p className="font-medium">
+              <p className="text-ink">
                 {item.gene_symbol}{" "}
                 <span className="text-xs font-normal text-ink-3">
                   {item.perturbation_type === "crispr" ? "CRISPR knockout" : item.perturbation_type === "orf" ? "ORF overexpression" : item.perturbation_type.toUpperCase()}

@@ -1,38 +1,32 @@
 "use client";
 
-import { Network } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 import { AnalysisPage, ContextFields, DEFAULT_CONTEXT } from "@/components/AnalysisPage";
 import { CompoundPicker } from "@/components/CompoundPicker";
 import { MoaResults } from "@/components/MoaResults";
-import { Field, LoadingState, TextInput } from "@/components/ui";
+import { Field, LoadingState, Select, TextInput } from "@/components/ui";
 import { api } from "@/lib/api";
 import { optionalNumber, optionalText } from "@/lib/format";
 import { useApiMutation, useApiQuery } from "@/lib/hooks";
 
-function UnannotatedCompounds({ onPick }: { onPick: (id: string) => void }) {
+/** Compounds with no MoA on record: the cases inference is actually for. */
+function UnannotatedSelect({ onPick }: { onPick: (id: string) => void }) {
   const { data } = useApiQuery(() => api.listCompounds({ annotated: false, limit: 100 }), []);
   const unique = data ? [...new Map(data.items.map((c) => [c.compound_id, c])).values()] : [];
   if (unique.length === 0) return null;
   return (
-    <div>
-      <p className="mb-1 text-sm font-medium text-ink-2">Unannotated compounds ({unique.length})</p>
-      <div className="flex max-h-28 flex-wrap gap-1 overflow-auto">
+    <Field label={`Or an unannotated compound (${unique.length})`} className="w-full sm:w-64">
+      <Select value="" onChange={(e) => e.target.value && onPick(e.target.value)}>
+        <option value="">Choose one</option>
         {unique.map((compound) => (
-          <button
-            key={compound.compound_id}
-            type="button"
-            onClick={() => onPick(compound.compound_id)}
-            className="rounded-full border border-line px-2 py-0.5 text-xs text-ink-2 hover:border-accent hover:text-accent"
-          >
+          <option key={compound.compound_id} value={compound.compound_id}>
             {compound.compound_name}
-          </button>
+          </option>
         ))}
-      </div>
-      <p className="mt-1 text-xs text-ink-3">No MoA on record: the cases inference is for.</p>
-    </div>
+      </Select>
+    </Field>
   );
 }
 
@@ -75,40 +69,43 @@ function MoaView() {
 
   return (
     <AnalysisPage
-      title="Mechanism-of-action inference"
+      title="Mechanism of action"
       description="Estimate a compound's likely mechanism from the annotations of its nearest phenotypic neighbours."
-      icon={<Network className="h-5 w-5" />}
       scoreLabel="Vote share"
       candidateLabel="Mechanism of action"
+      submitLabel="Infer mechanism"
       loading={loading}
       error={error}
       response={data}
       onSubmit={() => submit()}
       renderResults={(response) => <MoaResults response={response} />}
-      formFields={
-        <>
-          <Field label="Compound">
+      primary={
+        <div className="flex flex-wrap items-start gap-3">
+          <Field label="Query compound" className="min-w-[240px] flex-1">
             <CompoundPicker key={pickerKey} value={compoundId} onChange={setCompoundId} />
           </Field>
-          <UnannotatedCompounds onPick={pick} />
-          <Field label="Neighbours" hint="Nearest compounds that vote.">
+          <UnannotatedSelect onPick={pick} />
+        </div>
+      }
+      parameters={
+        <>
+          <Field label="Neighbours that vote" hint="Nearest compounds whose labels are counted.">
             <TextInput type="number" min={1} max={100} value={neighbors} onChange={(e) => setNeighbors(e.target.value)} />
           </Field>
-          <ContextFields values={context} onChange={setContext} topKLabel="Mechanisms (top k)" />
+          <ContextFields values={context} onChange={setContext} topKLabel="Mechanisms to show" />
         </>
       }
       method={
         <>
           <p>
             Each nearest neighbour with positive similarity votes for its annotated MoA labels, weighted by similarity.
-            Vote share is a label&apos;s fraction of the total vote.
+            Vote share is a label&apos;s fraction of the total vote. The query&apos;s own annotation never votes.
           </p>
           <p>
-            <strong>Confidence</strong> is empirical: every annotated compound is hidden in turn, its MoA inferred from
-            the rest, and the hit rate at each vote share is fitted (isotonic regression). The query is left out of its
-            own calibration.
+            <strong className="font-medium text-ink">Confidence</strong> is empirical: every annotated compound is hidden
+            in turn, its MoA inferred from the rest, and the hit rate at each vote share is fitted by isotonic regression.
+            The query is left out of its own calibration.
           </p>
-          <p>The query&apos;s own annotation never votes.</p>
         </>
       }
     />

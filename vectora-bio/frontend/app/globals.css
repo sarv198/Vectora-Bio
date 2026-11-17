@@ -1,92 +1,177 @@
 @import "tailwindcss";
 
+/*
+ * CellScope design tokens.
+ * Warm neutral surfaces, charcoal ink, one muted teal accent. Colour is reserved for
+ * interaction (accent), scientific meaning (data ramps) and state (ok / warn / danger).
+ * Light is the default; dark applies when the OS prefers it (unless the user chose light)
+ * or when the user chose dark. The theme switch writes data-theme on <html>.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   color-scheme: light;
-  --bg: #f6f6f4;
-  --surface: #fcfcfb;
-  --surface-2: #f0f0ed;
-  --line: #e2e1dc;
-  --ink: #161614;
-  --ink-2: #52514e;
-  --ink-3: #7a7974;
-  --accent: #1f6fc5;
-  --accent-soft: #e6effa;
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-baseline: #a3a29c;
-  --grid: #e7e6e1;
-  --ok: #157f3b;
-  --ok-soft: #e5f4ea;
-  --warn: #8a5a00;
-  --warn-soft: #fdf3dc;
-  --warn-line: #f0d48f;
-  --danger: #b4232a;
-  --danger-soft: #fbe9e9;
-  --danger-line: #f1b9bb;
+  --bg: #faf9f6;
+  --sidebar: #f2f0eb;
+  --surface: #ffffff;
+  --surface-2: #f3f1ec;
+  --surface-3: #ebe8e1;
+  --line: #e4e1d9;
+  --line-strong: #cfcbc1;
+  --ink: #1e211f;
+  --ink-2: #4a4e4b;
+  --ink-3: #7a7d78;
+  --accent: #2b6e62;
+  --accent-hover: #235c52;
+  --accent-ink: #ffffff;
+  --accent-soft: #e5eeea;
+  --accent-line: #b7d1c8;
+  --focus: rgba(43, 110, 98, 0.28);
+  --ok: #3b7a4c;
+  --ok-soft: #e6f0e8;
+  --warn: #93641c;
+  --warn-soft: #f6eedf;
+  --warn-line: #e3cfa8;
+  --danger: #a3432f;
+  --danger-soft: #f6e7e2;
+  --danger-line: #e5bfb3;
+  /* Charts */
+  --series-1: #13786a;
+  --series-2: #c4772a;
+  --series-3: #7a6aa6;
+  --series-baseline: #b9b6ad;
+  --grid: #ebe8e1;
+  /* Microscopy viewer stays dark in both themes. */
+  --viewer: #070808;
+  --viewer-line: #2a2d2b;
+  /* Sequential magnitude (teal), step 0 = indistinguishable from control. */
+  --heat-0: #f0eee8;
+  --heat-1: #d9e8e2;
+  --heat-2: #aacdc1;
+  --heat-3: #6fa898;
+  --heat-4: #3b8070;
+  --heat-5: #1d5a4c;
+  --heat-ink-strong: #ffffff;
+  /* Diverging agreement: teal = same direction, terracotta = opposite. */
+  --div-neg-2: #b0573b;
+  --div-neg-1: #e9c1b1;
+  --div-mid: #edeae3;
+  --div-pos-1: #b4d5ca;
+  --div-pos-2: #2a7564;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #121211;
-    --surface: #1a1a19;
-    --surface-2: #232321;
-    --line: #33332f;
-    --ink: #f0efec;
-    --ink-2: #c3c2b7;
-    --ink-3: #8f8e86;
-    --accent: #6aa8ef;
-    --accent-soft: #1d2a3b;
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-baseline: #6b6a64;
-    --grid: #2b2b28;
-    --ok: #5cc483;
-    --ok-soft: #17291e;
-    --warn: #e8b64a;
-    --warn-soft: #2c2412;
-    --warn-line: #5a4718;
-    --danger: #f08a8d;
-    --danger-soft: #2f1718;
-    --danger-line: #5c2a2c;
+    --bg: #151716;
+    --sidebar: #191b1a;
+    --surface: #1c1e1d;
+    --surface-2: #222524;
+    --surface-3: #2a2d2b;
+    --line: #2c2f2d;
+    --line-strong: #3d413e;
+    --ink: #e8e7e2;
+    --ink-2: #b6b8b2;
+    --ink-3: #888b85;
+    --accent: #6fb3a1;
+    --accent-hover: #86c2b2;
+    --accent-ink: #0f1211;
+    --accent-soft: #1e2d29;
+    --accent-line: #2f4a43;
+    --focus: rgba(111, 179, 161, 0.32);
+    --ok: #79b98a;
+    --ok-soft: #1b2a1f;
+    --warn: #d6a95c;
+    --warn-soft: #2b2416;
+    --warn-line: #54452a;
+    --danger: #e08a74;
+    --danger-soft: #2e1d18;
+    --danger-line: #5b3328;
+    --series-1: #3f9e89;
+    --series-2: #c98034;
+    --series-3: #9a8cc8;
+    --series-baseline: #6c6f69;
+    --grid: #2a2d2b;
+    --viewer: #000000;
+    --viewer-line: #2a2d2b;
+    --heat-0: #232624;
+    --heat-1: #1d3530;
+    --heat-2: #24534a;
+    --heat-3: #2f7466;
+    --heat-4: #4e9a88;
+    --heat-5: #8cc5b5;
+    --heat-ink-strong: #0f1211;
+    --div-neg-2: #d27a5c;
+    --div-neg-1: #55342a;
+    --div-mid: #2a2d2b;
+    --div-pos-1: #24514a;
+    --div-pos-2: #5fae9a;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #121211;
-  --surface: #1a1a19;
-  --surface-2: #232321;
-  --line: #33332f;
-  --ink: #f0efec;
-  --ink-2: #c3c2b7;
-  --ink-3: #8f8e86;
-  --accent: #6aa8ef;
-  --accent-soft: #1d2a3b;
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-baseline: #6b6a64;
-  --grid: #2b2b28;
-  --ok: #5cc483;
-  --ok-soft: #17291e;
-  --warn: #e8b64a;
-  --warn-soft: #2c2412;
-  --warn-line: #5a4718;
-  --danger: #f08a8d;
-  --danger-soft: #2f1718;
-  --danger-line: #5c2a2c;
+  --bg: #151716;
+  --sidebar: #191b1a;
+  --surface: #1c1e1d;
+  --surface-2: #222524;
+  --surface-3: #2a2d2b;
+  --line: #2c2f2d;
+  --line-strong: #3d413e;
+  --ink: #e8e7e2;
+  --ink-2: #b6b8b2;
+  --ink-3: #888b85;
+  --accent: #6fb3a1;
+  --accent-hover: #86c2b2;
+  --accent-ink: #0f1211;
+  --accent-soft: #1e2d29;
+  --accent-line: #2f4a43;
+  --focus: rgba(111, 179, 161, 0.32);
+  --ok: #79b98a;
+  --ok-soft: #1b2a1f;
+  --warn: #d6a95c;
+  --warn-soft: #2b2416;
+  --warn-line: #54452a;
+  --danger: #e08a74;
+  --danger-soft: #2e1d18;
+  --danger-line: #5b3328;
+  --series-1: #3f9e89;
+  --series-2: #c98034;
+  --series-3: #9a8cc8;
+  --series-baseline: #6c6f69;
+  --grid: #2a2d2b;
+  --viewer: #000000;
+  --viewer-line: #2a2d2b;
+  --heat-0: #232624;
+  --heat-1: #1d3530;
+  --heat-2: #24534a;
+  --heat-3: #2f7466;
+  --heat-4: #4e9a88;
+  --heat-5: #8cc5b5;
+  --heat-ink-strong: #0f1211;
+  --div-neg-2: #d27a5c;
+  --div-neg-1: #55342a;
+  --div-mid: #2a2d2b;
+  --div-pos-1: #24514a;
+  --div-pos-2: #5fae9a;
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
   --color-warn: var(--warn);
@@ -95,15 +180,64 @@
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-danger-line: var(--danger-line);
+  --color-viewer: var(--viewer);
+  --color-viewer-line: var(--viewer-line);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, monospace;
+  /* One restrained radius scale used everywhere. */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+  --radius-2xl: 6px;
+}
+
+html {
+  font-feature-settings: "cv11", "ss01";
 }
 
 body {
   background: var(--bg);
   color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
+/* Numerals that line up in columns (Inter supports tnum). */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* Small secondary label: sentence case, never uppercase. */
+.text-label,
+.label-caps {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Restrained motion. */
+@media (prefers-reduced-motion: no-preference) {
+  a,
+  button,
+  [role="row"],
+  tr,
+  input,
+  select {
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease,
+      box-shadow 120ms ease;
+  }
 }

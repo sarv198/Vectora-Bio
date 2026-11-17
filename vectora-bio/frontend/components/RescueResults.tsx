@@ -1,11 +1,26 @@
 "use client";
 
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
-import { ScoreChart } from "@/components/ScoreChart";
-import { Badge, Card, EmptyState } from "@/components/ui";
+import { ComparisonPanel, strengthText } from "@/components/PerturbationPanels";
+import { FeatureChangeList } from "@/components/PhenotypeMaps";
+import { Em, Findings, QuerySummary } from "@/components/QuerySummary";
+import {
+  EmptyState,
+  InfoTip,
+  Notice,
+  Score,
+  Section,
+  TABLE,
+  TD,
+  TH,
+  THEAD,
+  TR,
+  TableFrame,
+  selectableRow,
+} from "@/components/ui";
 import { formatCount, formatHours, formatScore, splitLabels } from "@/lib/format";
 import type { AnalysisResponse, FeatureContribution, RescueAnnotations } from "@/lib/types";
 
@@ -16,53 +31,81 @@ const FLAG_LABELS: Record<string, { label: string; hint: string }> = {
   },
   generic_response: {
     label: "Generic response",
-    hint: "Among the 10% of compounds most aligned with the response many compounds share, often stress.",
+    hint: "Among the 10% of compounds most aligned with a response many compounds share, often stress.",
   },
 };
 
+const TYPE_LABEL: Record<string, string> = { crispr: "CRISPR knockout", orf: "ORF overexpression", sirna: "siRNA knockdown" };
+
 function Direction({ value }: { value: number }) {
   return value >= 0 ? (
-    <ArrowUp className="inline h-3 w-3 text-ink-2" aria-label="increased" />
+    <ArrowUp className="inline h-3 w-3" aria-label="increased" />
   ) : (
-    <ArrowDown className="inline h-3 w-3 text-ink-2" aria-label="decreased" />
+    <ArrowDown className="inline h-3 w-3" aria-label="decreased" />
   );
 }
 
-function FeatureList({ items, title }: { items: FeatureContribution[]; title: string }) {
+function ContributionList({ items, title }: { items: FeatureContribution[]; title: string }) {
   if (items.length === 0) return null;
   return (
     <div className="min-w-0">
-      <p className="mb-1 text-xs font-medium text-ink-2">{title}</p>
-      <ul className="space-y-1 text-xs">
-        {items.map((item) => (
-          <li key={item.feature} className="flex items-baseline justify-between gap-3" title={item.feature}>
-            <span className="min-w-0 truncate text-ink-2">{item.label}</span>
-            <span className="tabular shrink-0 text-ink-3">
-              KO/OE <Direction value={item.signature} /> · cpd <Direction value={item.compound ?? 0} /> ·{" "}
-              {item.value >= 0 ? "+" : ""}
-              {(item.value * 100).toFixed(1)}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <p className="mb-1.5 text-[12px] font-medium text-ink-2">{title}</p>
+      <table className="w-full text-[12.5px]">
+        <thead>
+          <tr className="text-left text-[11.5px] text-ink-3">
+            <th className="pb-1 font-normal">Feature</th>
+            <th className="pb-1 text-center font-normal" title="Direction in the gene perturbation">
+              Gene
+            </th>
+            <th className="pb-1 text-center font-normal" title="Direction in the compound">
+              Cpd
+            </th>
+            <th className="pb-1 text-right font-normal" title="Contribution to the reversal score, x100">
+              Share
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.feature} title={item.feature}>
+              <td className="max-w-0 truncate py-0.5 pr-3 text-ink-2">{item.label}</td>
+              <td className="w-10 py-0.5 text-center text-ink-3">
+                <Direction value={item.signature} />
+              </td>
+              <td className="w-10 py-0.5 text-center text-ink-3">
+                <Direction value={item.compound ?? 0} />
+              </td>
+              <td className="tabular w-14 py-0.5 text-right text-ink">
+                {item.value >= 0 ? "+" : ""}
+                {(item.value * 100).toFixed(1)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
 function GroupBars({ title, values }: { title: string; values: Record<string, number> }) {
-  const entries = Object.entries(values).filter(([, v]) => v !== 0).slice(0, 6);
+  const entries = Object.entries(values)
+    .filter(([, v]) => v !== 0)
+    .slice(0, 6);
   const max = Math.max(...entries.map(([, v]) => Math.abs(v)), 1e-9);
   return (
     <div className="min-w-0">
-      <p className="mb-1 text-xs font-medium text-ink-2">{title}</p>
-      <ul className="space-y-1 text-xs">
+      <p className="mb-1.5 text-[12px] font-medium text-ink-2">{title}</p>
+      <ul className="space-y-1.5 text-[12.5px]">
         {entries.map(([name, value]) => (
-          <li key={name} className="grid grid-cols-[7rem_1fr_2.5rem] items-center gap-2">
+          <li key={name} className="grid grid-cols-[8rem_1fr_2.5rem] items-center gap-3">
             <span className="truncate text-ink-2">{name}</span>
-            <span className="h-1.5 rounded-full bg-surface-2">
+            <span className="h-1.5 rounded-full bg-surface-3">
               <span
-                className={`block h-full rounded-full ${value >= 0 ? "bg-[var(--series-1)]" : "bg-[var(--ink-3)]"}`}
-                style={{ width: `${(Math.abs(value) / max) * 100}%` }}
+                className="block h-full rounded-full"
+                style={{
+                  width: `${(Math.abs(value) / max) * 100}%`,
+                  background: value >= 0 ? "var(--accent)" : "var(--div-neg-2)",
+                }}
               />
             </span>
             <span className="tabular text-right text-ink-3">{(value * 100).toFixed(0)}</span>
@@ -73,88 +116,126 @@ function GroupBars({ title, values }: { title: string; values: Record<string, nu
   );
 }
 
-/** Rescue candidates with quality flags and per-feature explanations of each reversal score. */
+function Flags({ flags }: { flags: string[] }) {
+  if (flags.length === 0) return <span className="text-ink-3">None</span>;
+  return (
+    <span className="flex flex-col gap-0.5">
+      {flags.map((flag) => (
+        <span key={flag} className="inline-flex items-center gap-1 text-warn">
+          {FLAG_LABELS[flag]?.label ?? flag}
+          {FLAG_LABELS[flag] && <InfoTip>{FLAG_LABELS[flag].hint}</InfoTip>}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Rescue candidates with quality flags, per-feature explanations, and perturbation vs. compound images. */
 export function RescueResults({ response }: { response: AnalysisResponse }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const query = response.query_annotations as Record<string, string | number | null>;
   const signatureTop = (response.details.signature_top_features ?? []) as FeatureContribution[];
   const excluded = (response.details.excluded ?? {}) as Record<string, number>;
+  const [selected, setSelected] = useState<string | null>(response.predictions[0]?.candidate_id ?? null);
+  useEffect(() => setSelected(response.predictions[0]?.candidate_id ?? null), [response]);
+
+  const top = response.predictions[0];
+  const topInfo = top?.candidate_annotations as unknown as RescueAnnotations | undefined;
+  const flagged = response.predictions.filter(
+    (p) => (p.candidate_annotations as unknown as RescueAnnotations).stress_flags.length > 0,
+  );
+  const perturbationType = String(query.perturbation_type ?? "");
+  const isGenetic = ["crispr", "orf", "sirna"].includes(perturbationType);
+  const selectedPrediction = response.predictions.find((p) => p.candidate_id === selected);
 
   return (
-    <div className="space-y-4">
-      <Card title="Perturbation signature">
-        <div className="grid gap-4 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <div className="min-w-0">
-            <p className="text-base font-semibold">{response.query_name ?? response.query_id}</p>
-            <p className="text-xs text-ink-3">
-              {String(query.perturbation_type ?? "custom").toUpperCase()} ·{" "}
-              <span className="font-mono">{response.query_id}</span>
-            </p>
-            <p className="mt-1 text-xs text-ink-3">
-              {String(query.cell_line ?? "")} · {formatHours(Number(query.timepoint ?? NaN))} · minus matched controls
-            </p>
+    <div className="space-y-9">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <QuerySummary
+          label="Genetic perturbation"
+          name={response.query_name ?? response.query_id}
+          id={response.query_id}
+          facts={[
+            { label: "Reagent", value: TYPE_LABEL[perturbationType] ?? (perturbationType || "Custom signature") },
+            {
+              label: "Context",
+              value: `${String(query.cell_line ?? "")} · ${formatHours(Number(query.timepoint ?? NaN))}`,
+            },
+            {
+              label: "Compounds ranked",
+              value: (
+                <span className="tabular">
+                  {formatCount(response.summary.n_candidates)}
+                  {excluded.weak_response ? ` (${excluded.weak_response} weak excluded)` : ""}
+                </span>
+              ),
+            },
+          ]}
+        />
+        {signatureTop.length > 0 && (
+          <div>
+            <p className="mb-1 text-[12px] text-ink-3">Largest changes vs. matched controls (MAD units)</p>
+            <FeatureChangeList
+              unit="MAD"
+              features={signatureTop.slice(0, 5).map((f) => ({ feature: f.feature, label: f.label, value: f.value }))}
+            />
           </div>
-          <div className="min-w-0">
-            <p className="mb-1 text-xs text-ink-3">Largest changes vs. controls</p>
-            <ul className="space-y-0.5 text-xs">
-              {signatureTop.slice(0, 5).map((feature) => (
-                <li key={feature.feature} className="flex justify-between gap-2" title={feature.feature}>
-                  <span className="truncate text-ink-2">{feature.label}</span>
-                  <span className="tabular shrink-0 text-ink-3">
-                    <Direction value={feature.value} /> {formatScore(Math.abs(feature.value), 1)} MAD
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-        <p className="tabular mt-3 text-xs text-ink-3">
-          {formatCount(response.summary.n_candidates)} compounds ranked · {formatCount(response.summary.n_features)}{" "}
-          features
-          {excluded.weak_response ? ` · ${excluded.weak_response} weak responses excluded` : ""}
-          {excluded.stress_like ? ` · ${excluded.stress_like} stress-like excluded` : ""}
-        </p>
-      </Card>
+        )}
+      </div>
 
-      <p className="flex items-start gap-2 rounded-lg border border-warn-line bg-warn-soft px-3 py-2 text-xs text-ink-2">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
-        Computational reversal candidates, not proven rescue: an opposing profile can come from a different mechanism,
-        and must be tested experimentally.
-      </p>
-      {response.message && (
-        <p className="flex items-start gap-2 rounded-lg bg-surface-2 px-3 py-2 text-sm text-ink-2">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          {response.message}
-        </p>
-      )}
+      {response.message && <Notice>{response.message}</Notice>}
 
-      {response.predictions.length === 0 ? (
-        <EmptyState title="No candidates">No compound passes the filters.</EmptyState>
+      {response.predictions.length === 0 || !top || !topInfo ? (
+        <EmptyState title="No rescue candidates">No compound passes the filters. Relax them in Parameters and run again.</EmptyState>
       ) : (
         <>
-          <Card title="Reversal score">
-            <ScoreChart
-              valueLabel="Reversal score"
-              domain={[0, 1]}
-              data={response.predictions.map((p) => ({ label: p.candidate_name ?? p.candidate_id, value: p.score }))}
-            />
-          </Card>
-          <Card title="Rescue candidates">
-            <div className="-mx-4 -my-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-line text-left text-xs text-ink-3">
+          <Findings
+            items={[
+              <>
+                Strongest reversal is <Em>{top.candidate_name ?? top.candidate_id}</Em> with score{" "}
+                <Em>{formatScore(top.score, 2)}</Em>; its own response is stronger than{" "}
+{strengthText(topInfo.response_percentile).replace("> ", "")} of control pseudo-replicates
+                {topInfo.stress_flags.length ? ", but it carries a stress flag." : " and it carries no stress flags."}
+              </>,
+              <>
+                {flagged.length} of the top {response.predictions.length} candidates are flagged for cell loss or a generic
+                response
+                {excluded.stress_like ? `; ${excluded.stress_like} stress-like compounds were excluded.` : "."}
+              </>,
+              <>
+                These are computational candidates. An opposing profile can come from an unrelated mechanism and must be
+                confirmed experimentally.
+              </>,
+            ]}
+          />
+
+          <Section
+            title="Rescue candidates"
+            description="Select a row to compare cells below. Expand it to see which features drive the score."
+          >
+            <TableFrame>
+              <table className={TABLE}>
+                <thead className={THEAD}>
                   <tr>
-                    <th className="w-8 px-3 py-2 font-medium">#</th>
-                    <th className="px-3 py-2 font-medium">Compound</th>
-                    <th className="px-3 py-2 text-right font-medium">Reversal</th>
-                    <th
-                      className="px-3 py-2 text-right font-medium"
-                      title="Response strength vs. control pseudo-replicates, and agreement between replicate wells"
-                    >
-                      Strength · replicates
+                    <th className={`${TH} w-8`}>#</th>
+                    <th className={TH}>Compound</th>
+                    <th className={`${TH} text-right`}>
+                      <span className="inline-flex items-center gap-1">
+                        Reversal
+                        <InfoTip side="bottom">Minus the cosine between the compound and the gene signature: 1 is exact opposition.</InfoTip>
+                      </span>
                     </th>
-                    <th className="px-3 py-2 font-medium">Flags</th>
-                    <th className="w-8 px-3 py-2" />
+                    <th className={`${TH} text-right`}>
+                      <span className="inline-flex items-center gap-1">
+                        Strength
+                        <InfoTip side="bottom">Share of DMSO pseudo-replicates weaker than this compound&apos;s profile.</InfoTip>
+                      </span>
+                    </th>
+                    <th className={`${TH} text-right`}>Replicates</th>
+                    <th className={TH}>Flags</th>
+                    <th className={`${TH} w-8`}>
+                      <span className="sr-only">Details</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -164,63 +245,60 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
                     const moa = splitLabels(info.moa);
                     return (
                       <Fragment key={prediction.candidate_id}>
-                        <tr className="border-b border-line align-top">
-                          <td className="tabular px-3 py-2 text-ink-3">{prediction.rank}</td>
-                          <td className="max-w-52 px-3 py-2">
+                        <tr {...selectableRow(selected === prediction.candidate_id, () => setSelected(prediction.candidate_id))}>
+                          <td className={`${TD} tabular text-ink-3`}>{prediction.rank}</td>
+                          <td className={`${TD} max-w-[16rem]`}>
                             <Link
                               href={`/compounds/${encodeURIComponent(prediction.candidate_id)}`}
-                              className="block truncate font-medium text-accent hover:underline"
+                              onClick={(event) => event.stopPropagation()}
+                              className="block truncate font-medium text-ink hover:text-accent hover:underline"
                             >
                               {prediction.candidate_name ?? prediction.candidate_id}
                             </Link>
-                            <span className="block truncate text-xs text-ink-3">
-                              {moa.length ? moa.join(", ") : "MoA unknown"}
+                            <span className="block truncate text-[12px] text-ink-3">
+                              {moa.length ? moa.join(", ") : "Mechanism not annotated"}
                             </span>
                           </td>
-                          <td className="tabular px-3 py-2 text-right font-medium">{formatScore(prediction.score, 2)}</td>
-                          <td className="tabular px-3 py-2 text-right text-xs text-ink-2">
-                            {info.response_percentile === null ? "—" : `>${Math.floor(info.response_percentile * 100)}%`}
-                            <span className="text-ink-3"> · {formatScore(info.replicate_cosine, 2)}</span>
+                          <td className={`${TD} text-right`}>
+                            <Score value={prediction.score} text={formatScore(prediction.score, 2)} />
                           </td>
-                          <td className="px-3 py-2">
-                            <div className="flex flex-wrap gap-1">
-                              {info.stress_flags.map((flag) => (
-                                <span key={flag} title={FLAG_LABELS[flag]?.hint}>
-                                  <Badge tone="warn">
-                                    <AlertTriangle className="h-3 w-3" aria-hidden />
-                                    {FLAG_LABELS[flag]?.label ?? flag}
-                                  </Badge>
-                                </span>
-                              ))}
-                            </div>
+                          <td className={`${TD} tabular text-right text-ink-2`}>
+                            {strengthText(info.response_percentile)}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className={`${TD} tabular text-right text-ink-2`}>{formatScore(info.replicate_cosine, 2)}</td>
+                          <td className={`${TD} text-[12.5px]`}>
+                            <Flags flags={info.stress_flags} />
+                          </td>
+                          <td className={TD}>
                             <button
                               type="button"
-                              onClick={() => setExpanded(open ? null : prediction.candidate_id)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setExpanded(open ? null : prediction.candidate_id);
+                              }}
                               aria-expanded={open}
-                              aria-label={`Explain score for ${prediction.candidate_name ?? prediction.candidate_id}`}
-                              className="text-ink-3 hover:text-ink"
+                              aria-label={`Explain the score for ${prediction.candidate_name ?? prediction.candidate_id}`}
+                              className="rounded p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink"
                             >
-                              {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <ChevronRight className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
                             </button>
                           </td>
                         </tr>
                         {open && (
-                          <tr className="border-b border-line bg-surface-2/40">
+                          <tr className={`${TR} bg-surface-2`}>
                             <td />
-                            <td colSpan={5} className="space-y-3 px-3 py-3">
-                              <FeatureList
-                                title="Features driving the reversal (perturbation vs. compound direction, share of score ×100)"
-                                items={info.reversing_features}
-                              />
-                              <FeatureList title="Features working against it" items={info.opposing_features} />
-                              <div className="grid gap-4 sm:grid-cols-2">
-                                <GroupBars title="Contribution by measurement" values={info.by_measurement} />
-                                <GroupBars title="Contribution by stain channel" values={info.by_channel} />
+                            <td colSpan={6} className="space-y-5 py-4 pr-3">
+                              <div className="grid gap-6 lg:grid-cols-2">
+                                <ContributionList title="Features driving the reversal" items={info.reversing_features} />
+                                <ContributionList title="Features working against it" items={info.opposing_features} />
                               </div>
-                              <p className="text-[11px] text-ink-3">
-                                Feature contributions sum exactly to the reversal score.
+                              <div className="grid gap-6 sm:grid-cols-2">
+                                <GroupBars title="Contribution by measurement" values={info.by_measurement} />
+                                <GroupBars title="Contribution by stain" values={info.by_channel} />
+                              </div>
+                              <p className="text-[12px] text-ink-3">
+                                Feature contributions sum exactly to the reversal score. Arrows show each feature&apos;s
+                                direction in the gene perturbation and in the compound.
                               </p>
                             </td>
                           </tr>
@@ -230,8 +308,18 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
                   })}
                 </tbody>
               </table>
-            </div>
-          </Card>
+            </TableFrame>
+          </Section>
+
+          {selected && isGenetic && (
+            <ComparisonPanel
+              first={{ type: "genetic", id: response.query_id }}
+              second={{ type: "compound", id: selected }}
+              firstRole="Genetic perturbation"
+              secondRole={`Candidate #${selectedPrediction?.rank ?? ""}`}
+              mode="reversal"
+            />
+          )}
         </>
       )}
     </div>

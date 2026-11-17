@@ -92,6 +92,6 @@ describe("annotation helpers", () => {
     expect(topPercent(98.8)).toBe("Top 1.2%");
     expect(topPercent(50)).toBe("Top 50%");
     expect(topPercent(100)).toBe("Top 0.1%");
-    expect(topPercent(null)).toBe("—");
+    expect(topPercent(null)).toBe("n/a");
   });
 });

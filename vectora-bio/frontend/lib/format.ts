@@ -1,20 +1,20 @@
 export function formatScore(value: number | null | undefined, digits = 3): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (value === null || value === undefined || !Number.isFinite(value)) return "n/a";
   return value.toFixed(digits);
 }
 
 export function formatSigned(value: number | null | undefined, digits = 3): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (value === null || value === undefined || !Number.isFinite(value)) return "n/a";
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
 }
 
 export function formatHours(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "n/a";
   return `${Number.isInteger(value) ? value : value.toFixed(1)} h`;
 }
 
 export function formatCount(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "n/a";
   return value.toLocaleString("en-US");
 }
 
@@ -43,7 +43,7 @@ export function splitLabels(value: unknown): string[] {
 
 /** Express a 0-100 percentile as how exclusive it is: 98.8 -> "Top 1.2%". */
 export function topPercent(percentile: number | null | undefined): string {
-  if (percentile === null || percentile === undefined || !Number.isFinite(percentile)) return "—";
+  if (percentile === null || percentile === undefined || !Number.isFinite(percentile)) return "n/a";
   const top = Math.max(0, 100 - percentile);
   if (top < 0.1) return "Top 0.1%";
   return `Top ${top < 10 ? top.toFixed(1) : Math.round(top)}%`;

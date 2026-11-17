@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import compounds, evaluation, genes, health, moa, rescue, similarity, targets
+from app.api import compounds, evaluation, genes, health, images, moa, plates, profiles, rescue, similarity, targets
 from app.config import get_settings
 from app.db.session import init_db, safe_database_url
 from app.errors import register_exception_handlers
@@ -32,6 +32,8 @@ TAGS = [
     {"name": "moa", "description": "Similarity-based mechanism-of-action inference."},
     {"name": "rescue", "description": "Phenotypic rescue / perturbation reversal."},
     {"name": "evaluation", "description": "Recorded evaluation metrics."},
+    {"name": "profiles", "description": "Phenotype summaries and comparisons of single perturbations."},
+    {"name": "images", "description": "Raw Cell Painting microscopy fields, fetched on demand."},
 ]
 
 
@@ -78,6 +80,9 @@ def create_app() -> FastAPI:
     app.include_router(moa.router, prefix="/api/moa", tags=["moa"])
     app.include_router(rescue.router, prefix="/api/rescue", tags=["rescue"])
     app.include_router(evaluation.router, prefix="/api/evaluation", tags=["evaluation"])
+    app.include_router(profiles.router, prefix="/api/profiles", tags=["profiles"])
+    app.include_router(images.router, prefix="/api/images", tags=["images"])
+    app.include_router(plates.router, prefix="/api/plates", tags=["images"])
     return app
 
 

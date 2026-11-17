@@ -85,7 +85,7 @@ export function CompoundPicker({
 
   return (
     <div className="relative">
-      <Search className="pointer-events-none absolute top-2 left-2.5 h-4 w-4 text-ink-3" aria-hidden />
+      <Search className="pointer-events-none absolute top-2 left-2.5 h-4 w-4 text-ink-3" strokeWidth={1.75} aria-hidden />
       <input
         id={inputId}
         role="combobox"
@@ -121,14 +121,14 @@ export function CompoundPicker({
             setOpen(false);
           }
         }}
-        className="w-full rounded-md border border-line bg-surface py-1.5 pr-3 pl-8 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+        className="h-8 w-full rounded-md border border-line-strong bg-surface pr-3 pl-8 text-[13.5px] text-ink placeholder:text-ink-3 hover:border-ink-3 focus:border-accent focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none"
       />
-      {selectedName && value && <p className="mt-1 truncate font-mono text-[11px] text-ink-3">{value}</p>}
+      {selectedName && value && <p className="mt-1 truncate font-mono text-[11.5px] text-ink-3">{value}</p>}
       {open && options.length > 0 && (
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-line bg-surface py-1 shadow-lg"
+          className="absolute z-30 mt-1 max-h-80 w-full overflow-auto rounded-md border border-line bg-surface py-1 shadow-[0_6px_20px_rgba(0,0,0,0.08)]"
           onMouseDown={() => blurTimer.current && clearTimeout(blurTimer.current)}
         >
           {options.map((compound, index) => (
@@ -141,9 +141,9 @@ export function CompoundPicker({
                 event.preventDefault();
                 choose(compound);
               }}
-              className={`cursor-pointer px-3 py-1.5 text-sm ${index === active ? "bg-accent-soft" : ""}`}
+              className={`cursor-pointer px-3 py-1.5 text-[13.5px] ${index === active ? "bg-surface-2" : ""}`}
             >
-              <p className="truncate font-medium">{compound.compound_name}</p>
+              <p className="truncate text-ink">{compound.compound_name}</p>
               <p className="truncate text-xs text-ink-3">
                 <span className="font-mono">{compound.compound_id}</span>
                 {compound.moa ? ` · ${compound.moa}` : ""}

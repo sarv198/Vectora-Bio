@@ -310,3 +310,101 @@ export interface ApiErrorBody {
   message: string;
   details: Record<string, unknown>;
 }
+
+// --- Phenotype overviews, comparisons, plates and images -------------------------------
+
+export interface PhenotypeMapCell {
+  compartment: string;
+  channel: string;
+  n_features: number;
+  rms: number;
+  mean: number;
+  top_feature: string | null;
+  top_label: string | null;
+  top_value: number | null;
+}
+
+export interface FeatureChange {
+  feature: string;
+  label: string;
+  value: number;
+}
+
+export interface WellImageRef {
+  plate: string;
+  well: string;
+  control_well: string | null;
+}
+
+export interface ImageSourceInfo {
+  available: boolean;
+  source: string;
+  fields: number[];
+  default_field: number;
+  channels: string[];
+  channel_colors: Record<string, string>;
+  pixel_size_um: number;
+  image_size_px: number;
+  message: string | null;
+}
+
+export interface ProfileOverview {
+  perturbation_id: string;
+  profile_type: ProfileType;
+  name: string | null;
+  gene: string | null;
+  modality: string | null;
+  cell_line: string;
+  timepoint: number;
+  n_replicates: number | null;
+  replicate_cosine: number | null;
+  n_features: number;
+  response_norm: number;
+  strength_percentile: number | null;
+  phenotype_map: PhenotypeMapCell[];
+  top_features: FeatureChange[];
+  wells: WellImageRef[];
+  images: ImageSourceInfo;
+}
+
+export interface MapAgreement {
+  compartment: string;
+  channel: string;
+  n_features: number;
+  cosine: number;
+}
+
+export interface ProfileComparison {
+  first_id: string;
+  second_id: string;
+  cosine: number;
+  subtract_controls: boolean;
+  cells: MapAgreement[];
+}
+
+export interface PlateSummary {
+  plate: string;
+  modality: string | null;
+  cell_line: string | null;
+  timepoint: number | null;
+  n_wells: number;
+  n_controls: number;
+}
+
+export interface PlateWell {
+  well: string;
+  kind: string;
+  perturbation_id: string | null;
+  profile_type: ProfileType;
+  label: string | null;
+}
+
+export interface PlateLayout extends Omit<PlateSummary, "n_wells" | "n_controls"> {
+  wells: PlateWell[];
+}
+
+/** A perturbation to show: compound or genetic profile id. */
+export interface PerturbationRef {
+  type: "compound" | "genetic";
+  id: string;
+}

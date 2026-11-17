@@ -1,22 +1,34 @@
 import type { ReactNode } from "react";
 
-import { Button } from "@/components/ui";
+import { Button, TABLE, TD, TH, THEAD, TR, TableFrame } from "@/components/ui";
 import { formatCount } from "@/lib/format";
 
 export interface Column<T> {
   header: string;
   cell: (row: T) => ReactNode;
   align?: "left" | "right";
+  className?: string;
 }
 
-export function DataTable<T>({ columns, rows, rowKey }: { columns: Column<T>[]; rows: T[]; rowKey: (row: T) => string }) {
+export function DataTable<T>({
+  columns,
+  rows,
+  rowKey,
+  rowProps,
+}: {
+  columns: Column<T>[];
+  rows: T[];
+  rowKey: (row: T) => string;
+  /** Optional per-row props (e.g. from `selectableRow`). */
+  rowProps?: (row: T) => Record<string, unknown>;
+}) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-      <table className="w-full text-sm">
-        <thead className="border-b border-line text-left text-xs text-ink-3">
+    <TableFrame>
+      <table className={TABLE}>
+        <thead className={THEAD}>
           <tr>
-            {columns.map((column) => (
-              <th key={column.header} className={`px-4 py-2 font-medium ${column.align === "right" ? "text-right" : ""}`}>
+            {columns.map((column, index) => (
+              <th key={index} className={`${TH} ${column.align === "right" ? "text-right" : ""}`}>
                 {column.header}
               </th>
             ))}
@@ -24,9 +36,12 @@ export function DataTable<T>({ columns, rows, rowKey }: { columns: Column<T>[]; 
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={rowKey(row)} className="border-b border-line last:border-0 hover:bg-surface-2/60">
-              {columns.map((column) => (
-                <td key={column.header} className={`px-4 py-2 ${column.align === "right" ? "tabular text-right" : ""}`}>
+            <tr key={rowKey(row)} className={`${TR} hover:bg-surface-2`} {...(rowProps?.(row) ?? {})}>
+              {columns.map((column, index) => (
+                <td
+                  key={index}
+                  className={`${TD} ${column.align === "right" ? "tabular text-right" : ""} ${column.className ?? ""}`}
+                >
                   {column.cell(row)}
                 </td>
               ))}
@@ -34,7 +49,7 @@ export function DataTable<T>({ columns, rows, rowKey }: { columns: Column<T>[]; 
           ))}
         </tbody>
       </table>
-    </div>
+    </TableFrame>
   );
 }
 
@@ -51,15 +66,15 @@ export function Pagination({
 }) {
   const end = Math.min(offset + limit, total);
   return (
-    <div className="mt-3 flex items-center justify-between text-sm text-ink-3">
+    <div className="mt-3 flex items-center justify-between text-[12.5px] text-ink-3">
       <span className="tabular">
-        {total === 0 ? "0 results" : `${formatCount(offset + 1)}–${formatCount(end)} of ${formatCount(total)}`}
+        {total === 0 ? "No results" : `${formatCount(offset + 1)} to ${formatCount(end)} of ${formatCount(total)}`}
       </span>
       <div className="flex gap-2">
-        <Button variant="secondary" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - limit))}>
+        <Button variant="secondary" size="sm" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - limit))}>
           Previous
         </Button>
-        <Button variant="secondary" disabled={end >= total} onClick={() => onChange(offset + limit)}>
+        <Button variant="secondary" size="sm" disabled={end >= total} onClick={() => onChange(offset + limit)}>
           Next
         </Button>
       </div>

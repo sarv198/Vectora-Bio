@@ -1,180 +1,213 @@
 "use client";
 
-import { Check, Info } from "lucide-react";
+import { Check } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
-import { ScoreChart } from "@/components/ScoreChart";
-import { Badge, Card, EmptyState } from "@/components/ui";
+import { ComparisonPanel } from "@/components/PerturbationPanels";
+import { Em, Findings, QuerySummary } from "@/components/QuerySummary";
+import {
+  EmptyState,
+  InfoTip,
+  Notice,
+  Score,
+  Section,
+  TABLE,
+  TD,
+  TH,
+  THEAD,
+  TableFrame,
+  selectableRow,
+} from "@/components/ui";
 import { formatCount, formatHours, formatScore, splitLabels, topPercent } from "@/lib/format";
 import type { AnalysisResponse, CompoundQueryAnnotations, SimilarityAnnotations } from "@/lib/types";
 
-const MAX_TARGETS_SHOWN = 2;
+const MAX_TARGETS_SHOWN = 3;
 
-function MoaLabels({ moa, shared }: { moa: string | null; shared: string[] }) {
+function MechanismCell({ moa, shared }: { moa: string | null; shared: string[] }) {
   const labels = splitLabels(moa);
-  if (labels.length === 0) return <span className="text-ink-3">Unknown</span>;
+  if (labels.length === 0) return <span className="text-ink-3">Not annotated</span>;
   return (
-    <div className="flex flex-wrap gap-1">
-      {labels.map((label) =>
+    <span className="flex flex-wrap gap-x-1.5 gap-y-0.5">
+      {labels.map((label, index) =>
         shared.includes(label) ? (
-          <Badge key={label} tone="accent">
-            <Check className="h-3 w-3" aria-hidden />
+          <span key={label} className="inline-flex items-center gap-1 font-medium text-accent" title="Shared with the query">
+            <Check className="h-3.5 w-3.5" aria-hidden />
             {label}
-          </Badge>
+            {index < labels.length - 1 ? "," : ""}
+          </span>
         ) : (
-          <Badge key={label}>{label}</Badge>
+          <span key={label} className="text-ink-2">
+            {label}
+            {index < labels.length - 1 ? "," : ""}
+          </span>
         ),
       )}
-    </div>
-  );
-}
-
-function Targets({ value }: { value: string | null }) {
-  const targets = splitLabels(value);
-  if (targets.length === 0) return <span className="text-ink-3">—</span>;
-  const shown = targets.slice(0, MAX_TARGETS_SHOWN).join(", ");
-  const extra = targets.length - MAX_TARGETS_SHOWN;
-  return (
-    <span title={targets.join(", ")}>
-      {shown}
-      {extra > 0 && <span className="text-ink-3"> +{extra}</span>}
     </span>
   );
 }
 
-/** Compound | Similarity | Known MoA table with the query's own annotations for comparison. */
+function targetsText(value: string | null): string {
+  const targets = splitLabels(value);
+  if (targets.length === 0) return "None annotated";
+  const extra = targets.length - MAX_TARGETS_SHOWN;
+  return `${targets.slice(0, MAX_TARGETS_SHOWN).join(", ")}${extra > 0 ? ` +${extra}` : ""}`;
+}
+
+/** Query, key findings, ranked neighbours with inline evidence, and a visual comparison of the selected hit. */
 export function SimilarityResults({ response }: { response: AnalysisResponse }) {
   const query = response.query_annotations as unknown as CompoundQueryAnnotations;
   const { summary, predictions } = response;
-  const nShared = predictions.filter(
-    (p) => ((p.candidate_annotations as unknown as SimilarityAnnotations).shared_moa ?? []).length > 0,
-  ).length;
-  const nAnnotated = predictions.filter((p) => (p.candidate_annotations as unknown as SimilarityAnnotations).moa).length;
+  const [selected, setSelected] = useState<string | null>(predictions[0]?.candidate_id ?? null);
+  useEffect(() => setSelected(predictions[0]?.candidate_id ?? null), [response]);
+
+  const info = (id: string) =>
+    predictions.find((p) => p.candidate_id === id)?.candidate_annotations as unknown as SimilarityAnnotations;
+  const top = predictions[0];
+  const queryMoa = splitLabels(query.moa);
+  const sharing = predictions.filter((p) => (info(p.candidate_id).shared_moa ?? []).length > 0);
+  const sharedLabels = [...new Set(sharing.flatMap((p) => info(p.candidate_id).shared_moa ?? []))];
+  const nAnnotated = predictions.filter((p) => info(p.candidate_id).moa).length;
+  const nTop1 = predictions.filter((p) => (info(p.candidate_id).score_percentile ?? 0) >= 99).length;
+  const selectedPrediction = predictions.find((p) => p.candidate_id === selected);
 
   return (
-    <div className="space-y-4">
-      <Card title="Query compound">
-        <div className="grid gap-4 text-sm sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="min-w-0">
-            <p className="truncate text-base font-semibold">{response.query_name ?? response.query_id}</p>
-            <Link
-              href={`/compounds/${encodeURIComponent(response.query_id)}`}
-              className="font-mono text-xs text-accent hover:underline"
-            >
-              {response.query_id}
-            </Link>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-ink-3">Known MoA</p>
-            <MoaLabels moa={query.moa} shared={[]} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-ink-3">Known targets</p>
-            <Targets value={query.known_target} />
-          </div>
-        </div>
-        <p className="tabular mt-3 text-xs text-ink-3">
-          {formatCount(summary.n_candidates)} candidates · {formatCount(summary.n_features)} features ·{" "}
-          {summary.cell_line ?? "multiple cell lines"} · {formatHours(summary.timepoint)}
-          {query.replicate_cosine !== null && ` · replicate agreement ${formatScore(query.replicate_cosine, 2)}`}
-          {response.run_id ? ` · run #${response.run_id}` : ""}
-        </p>
-      </Card>
+    <div className="space-y-9">
+      <QuerySummary
+        label="Query compound"
+        name={response.query_name ?? response.query_id}
+        id={response.query_id}
+        href={`/compounds/${encodeURIComponent(response.query_id)}`}
+        facts={[
+          { label: "Known mechanism", value: queryMoa.length ? queryMoa.join(", ") : <span className="text-ink-3">Not annotated</span> },
+          { label: "Known targets", value: targetsText(query.known_target) },
+          { label: "Replicate agreement", value: <span className="tabular">{formatScore(query.replicate_cosine, 2)}</span> },
+          {
+            label: "Context",
+            value: `${summary.cell_line ?? "Several cell lines"} · ${formatHours(summary.timepoint)} · ${formatCount(summary.n_candidates)} candidates`,
+          },
+        ]}
+      />
 
-      {response.message && (
-        <p className="flex items-start gap-2 rounded-lg bg-surface-2 px-3 py-2 text-sm text-ink-2">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          {response.message}
-        </p>
-      )}
+      {response.message && <Notice>{response.message}</Notice>}
 
-      {predictions.length === 0 ? (
-        <EmptyState title="No similar compounds">No candidates remain after the filters.</EmptyState>
+      {predictions.length === 0 || !top ? (
+        <EmptyState title="No similar compounds">No candidates remain after the filters. Relax the parameters and run again.</EmptyState>
       ) : (
         <>
-          <Card title="Cosine similarity">
-            <ScoreChart
-              valueLabel="Cosine similarity"
-              data={predictions.map((p) => ({ label: p.candidate_name ?? p.candidate_id, value: p.score }))}
-            />
-          </Card>
+          <Findings
+            items={[
+              <>
+                Nearest compound is <Em>{top.candidate_name ?? top.candidate_id}</Em> with cosine{" "}
+                <Em>{formatScore(top.score, 2)}</Em>
+                {info(top.candidate_id).score_percentile !== null
+                  ? `, in the ${topPercent(info(top.candidate_id).score_percentile).toLowerCase()} of all compound pairs.`
+                  : "."}
+              </>,
+              queryMoa.length ? (
+                <>
+                  <Em>
+                    {sharing.length} of {predictions.length}
+                  </Em>{" "}
+                  neighbours share an annotated mechanism with the query
+                  {sharedLabels.length ? ` (${sharedLabels.join(", ")})` : ""}.
+                </>
+              ) : (
+                <>
+                  The query has no mechanism annotation; {nAnnotated} of {predictions.length} neighbours are annotated and
+                  may suggest one.
+                </>
+              ),
+              nTop1 > 0 ? (
+                <>
+                  {nTop1} neighbour{nTop1 === 1 ? " is" : "s are"} in the top 1% of all compound-pair similarities.
+                </>
+              ) : (
+                <>No neighbour reaches the top 1% of compound-pair similarities, so matches are weak.</>
+              ),
+            ]}
+          />
 
-          <Card
-            title="Nearest compounds"
-            actions={
-              <span className="text-xs text-ink-3">
-                {nAnnotated} of {predictions.length} annotated
-                {query.moa ? ` · ${nShared} share the query's MoA` : ""}
-              </span>
-            }
-          >
-            <div className="-mx-4 -my-4 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-line text-left text-xs text-ink-3">
+          <Section title="Ranked neighbours" description="Select a row to compare its cells with the query below.">
+            <TableFrame>
+              <table className={TABLE}>
+                <thead className={THEAD}>
                   <tr>
-                    <th className="w-8 px-3 py-2 font-medium">#</th>
-                    <th className="px-3 py-2 font-medium">Compound</th>
-                    <th className="px-3 py-2 text-right font-medium">Similarity</th>
-                    <th
-                      className="px-3 py-2 text-right font-medium"
-                      title="How this score ranks among all compound pairs in the same cell line and timepoint"
-                    >
-                      vs. all pairs
+                    <th className={`${TH} w-8`}>#</th>
+                    <th className={TH}>Compound</th>
+                    <th className={`${TH} text-right`}>Cosine similarity</th>
+                    <th className={`${TH} text-right`}>
+                      <span className="inline-flex items-center gap-1">
+                        Percentile
+                        <InfoTip side="bottom">
+                          How this score ranks among all compound pairs in the same cell line and timepoint.
+                        </InfoTip>
+                      </span>
                     </th>
-                    <th className="px-3 py-2 font-medium">Known MoA · targets</th>
-                    <th
-                      className="px-3 py-2 text-right font-medium"
-                      title="Mean cosine between this compound's replicate wells"
-                    >
-                      Replicate agr.
+                    <th className={TH}>Known mechanism</th>
+                    <th className={`${TH} hidden lg:table-cell`}>Known targets</th>
+                    <th className={`${TH} text-right`}>
+                      <span className="inline-flex items-center gap-1">
+                        Replicates
+                        <InfoTip side="bottom">Mean cosine between this compound&apos;s replicate wells: its reproducibility.</InfoTip>
+                      </span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {predictions.map((prediction) => {
-                    const info = prediction.candidate_annotations as unknown as SimilarityAnnotations;
+                    const annotations = info(prediction.candidate_id);
                     return (
-                      <tr key={prediction.candidate_id} className="border-b border-line align-top last:border-0">
-                        <td className="tabular px-3 py-2 text-ink-3">{prediction.rank}</td>
-                        <td className="max-w-48 px-3 py-2">
+                      <tr
+                        key={prediction.candidate_id}
+                        {...selectableRow(selected === prediction.candidate_id, () => setSelected(prediction.candidate_id))}
+                      >
+                        <td className={`${TD} tabular text-ink-3`}>{prediction.rank}</td>
+                        <td className={`${TD} max-w-[15rem]`}>
                           <Link
                             href={`/compounds/${encodeURIComponent(prediction.candidate_id)}`}
-                            className="block truncate font-medium text-accent hover:underline"
+                            onClick={(event) => event.stopPropagation()}
+                            className="block truncate font-medium text-ink hover:text-accent hover:underline"
                           >
                             {prediction.candidate_name ?? prediction.candidate_id}
                           </Link>
                           {prediction.candidate_name && (
-                            <span className="block truncate font-mono text-[11px] text-ink-3">
-                              {prediction.candidate_id}
-                            </span>
+                            <span className="block truncate font-mono text-[11.5px] text-ink-3">{prediction.candidate_id}</span>
                           )}
                         </td>
-                        <td className="tabular px-3 py-2 text-right font-medium">
-                          {formatScore(prediction.score, 2)}
+                        <td className={`${TD} text-right`}>
+                          <Score value={prediction.score} text={formatScore(prediction.score, 2)} />
                         </td>
-                        <td className="tabular px-3 py-2 text-right whitespace-nowrap text-ink-2">
-                          {topPercent(info.score_percentile)}
+                        <td className={`${TD} tabular text-right whitespace-nowrap text-ink-2`}>
+                          {topPercent(annotations.score_percentile)}
                         </td>
-                        <td className="px-3 py-2">
-                          <MoaLabels moa={info.moa} shared={info.shared_moa ?? []} />
-                          <p className="mt-1 text-xs text-ink-3">
-                            <Targets value={info.known_target} />
-                          </p>
+                        <td className={`${TD} max-w-[18rem]`}>
+                          <MechanismCell moa={annotations.moa} shared={annotations.shared_moa ?? []} />
                         </td>
-                        <td className="tabular px-3 py-2 text-right text-ink-2">
-                          {info.replicate_cosine === null ? "—" : formatScore(info.replicate_cosine, 2)}
+                        <td className={`${TD} hidden max-w-[12rem] truncate text-ink-2 lg:table-cell`}>
+                          {targetsText(annotations.known_target)}
                         </td>
+                        <td className={`${TD} tabular text-right text-ink-2`}>{formatScore(annotations.replicate_cosine, 2)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-            </div>
-          </Card>
-          <p className="text-xs text-ink-3">
-            Phenotypic similarity suggests, but does not establish, a shared mechanism. Highlighted MoA labels are
-            shared with the query.
-          </p>
+            </TableFrame>
+            <p className="mt-2 text-[12px] text-ink-3">
+              Phenotypic similarity suggests, but does not establish, a shared mechanism. Mechanisms in teal are shared with
+              the query.
+            </p>
+          </Section>
+
+          {selected && (
+            <ComparisonPanel
+              first={{ type: "compound", id: response.query_id }}
+              second={{ type: "compound", id: selected }}
+              firstRole="Query"
+              secondRole={`Neighbour #${selectedPrediction?.rank ?? ""}`}
+            />
+          )}
         </>
       )}
     </div>

@@ -9,6 +9,11 @@ Vectora Bio analyzes high-dimensional cellular phenotypic profiles (e.g. process
 | Similarity-based MoA inference | `POST /api/moa/infer` | Similarity-weighted vote with leave-one-out calibrated confidence (Phase 4) |
 | Phenotypic rescue / perturbation reversal | `POST /api/rescue/search` | Reversal score with per-feature explanations, weak-response filter, cell-loss/stress flags (Phase 5) |
 | Model evaluation | `POST /api/evaluation/run`, `GET /api/evaluation`, `python -m app.pipeline.evaluate` | 5-fold held-out benchmarks vs. baselines, random and unseen-target splits, leakage audit (Phase 6) |
+| Cell images and phenotype maps | `GET /api/images/{plate}/{well}`, `GET /api/profiles/{type}/{id}`, `GET /api/profiles/compare`, `GET /api/plates` | Raw Cell Painting fields fetched on demand, compartment x stain maps, per-region agreement between two profiles, plate layouts |
+
+The web app is a lab-style workbench (light and dark themes) that shows each result with the underlying microscopy: the perturbation's wells beside a negative control from the same plate, phenotype maps, and the statistics behind every ranking. Raw images are fetched one field at a time from the public Cell Painting Gallery the first time they are viewed and cached under `data/raw/images/` (about 2 to 3 MB per channel). Set `CELL_IMAGES_ENABLED=false` to turn this off.
+
+Step-by-step checks of every feature with expected results: [docs/manual_tests.md](docs/manual_tests.md).
 
 These are baseline methods, not tuned models. No endpoint returns placeholder results: when the data a request needs has not been imported, it returns **HTTP 503** with `error: "data_not_loaded"` and the list of missing datasets.
 

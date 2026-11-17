@@ -1,61 +1,73 @@
 "use client";
 
-import { ArrowLeft, Dna } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { ApiErrorNotice } from "@/components/ApiErrorNotice";
 import { DataTable } from "@/components/DataTable";
-import { Badge, LoadingState, PageHeader } from "@/components/ui";
+import { PerturbationInspector } from "@/components/PerturbationPanels";
+import { LoadingState, PageHeader, Section, selectableRow } from "@/components/ui";
 import { api } from "@/lib/api";
 import { formatHours } from "@/lib/format";
 import { useApiQuery } from "@/lib/hooks";
+
+const TYPE_LABEL: Record<string, string> = { crispr: "CRISPR knockout", orf: "ORF overexpression", sirna: "siRNA" };
 
 export default function GeneDetailPage() {
   const { geneId } = useParams<{ geneId: string }>();
   const id = decodeURIComponent(geneId);
   const { data, error, loading } = useApiQuery(() => api.getGene(id), [id]);
+  const [selected, setSelected] = useState<string | null>(null);
+  useEffect(() => setSelected(data?.perturbations[0]?.perturbation_id ?? null), [data]);
 
   return (
     <>
-      <Link href="/genes" className="mb-4 inline-flex items-center gap-1 text-sm text-ink-2 hover:text-ink">
-        <ArrowLeft className="h-4 w-4" /> Genes
+      <Link href="/genes" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-ink-3 hover:text-ink">
+        <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Genes
       </Link>
       <PageHeader
         title={data?.gene_symbol ?? id}
-        description={data ? <span className="font-mono">Gene id {data.gene_id}</span> : undefined}
-        icon={<Dna className="h-5 w-5" />}
+        description={data ? <span className="text-[12.5px] text-ink-3">Gene id <span className="font-mono">{data.gene_id}</span></span> : undefined}
       />
       {error ? (
         <ApiErrorNotice error={error} />
       ) : loading || !data ? (
         <LoadingState />
       ) : (
-        <>
-          <h2 className="mb-2 text-sm font-semibold">Perturbations ({data.perturbations.length})</h2>
-          <DataTable
-            rows={data.perturbations}
-            rowKey={(row) => `${row.perturbation_id}-${row.cell_line}-${row.timepoint}`}
-            columns={[
-              { header: "Perturbation", cell: (row) => <span className="font-mono text-xs">{row.perturbation_id}</span> },
-              { header: "Type", cell: (row) => <Badge>{row.perturbation_type.toUpperCase()}</Badge> },
-              { header: "Cell line", cell: (row) => row.cell_line },
-              { header: "Timepoint", cell: (row) => formatHours(row.timepoint), align: "right" },
-              {
-                header: "",
-                cell: (row) => (
-                  <Link
-                    href={`/rescue?perturbation=${encodeURIComponent(row.perturbation_id)}`}
-                    className="text-xs text-accent hover:underline"
-                  >
-                    Find rescue compounds
-                  </Link>
-                ),
-                align: "right",
-              },
-            ]}
-          />
-        </>
+        <div className="space-y-10">
+          <Section
+            title={`Genetic reagents (${data.perturbations.length})`}
+            description="Select a reagent to view its cells and phenotype below."
+          >
+            <DataTable
+              rows={data.perturbations}
+              rowKey={(row) => `${row.perturbation_id}-${row.cell_line}-${row.timepoint}`}
+              rowProps={(row) => selectableRow(selected === row.perturbation_id, () => setSelected(row.perturbation_id))}
+              columns={[
+                { header: "Reagent", cell: (row) => <span className="text-ink">{TYPE_LABEL[row.perturbation_type] ?? row.perturbation_type}</span> },
+                { header: "Reagent id", cell: (row) => <span className="font-mono text-[12px] text-ink-2">{row.perturbation_id}</span> },
+                { header: "Cell line", cell: (row) => <span className="text-ink-2">{row.cell_line}</span> },
+                { header: "Timepoint", cell: (row) => formatHours(row.timepoint), align: "right" },
+                {
+                  header: "",
+                  cell: (row) => (
+                    <Link
+                      href={`/rescue?perturbation=${encodeURIComponent(row.perturbation_id)}`}
+                      onClick={(event) => event.stopPropagation()}
+                      className="text-[12.5px] text-accent hover:underline"
+                    >
+                      Find rescue compounds
+                    </Link>
+                  ),
+                  align: "right",
+                },
+              ]}
+            />
+          </Section>
+          {selected && <PerturbationInspector key={selected} target={{ type: "genetic", id: selected }} />}
+        </div>
       )}
     </>
   );

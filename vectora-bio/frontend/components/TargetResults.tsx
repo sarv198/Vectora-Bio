@@ -1,32 +1,49 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import { ApiErrorNotice } from "@/components/ApiErrorNotice";
-import { QueryCompoundCard } from "@/components/QueryCompoundCard";
-import { ScoreChart } from "@/components/ScoreChart";
-import { Badge, Card, EmptyState } from "@/components/ui";
+import { ComparisonPanel } from "@/components/PerturbationPanels";
+import { Em, Findings, QuerySummary } from "@/components/QuerySummary";
+import {
+  EmptyState,
+  InfoTip,
+  Notice,
+  Score,
+  Section,
+  TABLE,
+  TD,
+  TH,
+  THEAD,
+  TR,
+  TableFrame,
+  Tabs,
+  selectableRow,
+} from "@/components/ui";
 import type { ApiError } from "@/lib/api";
-import { formatScore, formatSigned, splitLabels, topPercent } from "@/lib/format";
+import { formatHours, formatScore, formatSigned, splitLabels, topPercent } from "@/lib/format";
 import type { AnalysisResponse, CompoundRef, MatchAnnotations, TargetAnnotations } from "@/lib/types";
 
 type Tab = "prioritized" | "matches";
 
+const TYPE_LABEL: Record<string, string> = { crispr: "CRISPR", orf: "ORF", sirna: "siRNA" };
+const typeLabel = (value: string | null | undefined) => (value ? (TYPE_LABEL[value] ?? value.toUpperCase()) : "Reagent");
+
 function CompoundList({ title, items, empty }: { title: string; items: CompoundRef[]; empty: string }) {
   return (
     <div className="min-w-0">
-      <p className="mb-1 text-xs font-medium text-ink-2">{title}</p>
+      <p className="mb-1.5 text-[12px] font-medium text-ink-2">{title}</p>
       {items.length === 0 ? (
-        <p className="text-xs text-ink-3">{empty}</p>
+        <p className="text-[12.5px] text-ink-3">{empty}</p>
       ) : (
-        <ul className="space-y-0.5 text-xs">
+        <ul className="space-y-1 text-[12.5px]">
           {items.map((item) => (
-            <li key={item.compound_id} className="flex justify-between gap-2">
+            <li key={item.compound_id} className="flex justify-between gap-3">
               <Link
                 href={`/compounds/${encodeURIComponent(item.compound_id)}`}
-                className="truncate text-accent hover:underline"
+                className="truncate text-ink-2 hover:text-accent hover:underline"
               >
                 {item.compound_name ?? item.compound_id}
               </Link>
@@ -39,180 +56,206 @@ function CompoundList({ title, items, empty }: { title: string; items: CompoundR
   );
 }
 
-function PrioritizedTable({ response }: { response: AnalysisResponse }) {
+function PrioritizedTable({
+  response,
+  selected,
+  onSelect,
+}: {
+  response: AnalysisResponse;
+  selected: string | null;
+  onSelect: (reagentId: string) => void;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const weight = Number(response.parameters.neighbor_weight ?? 0);
 
   return (
-    <div className="space-y-4">
-      <Card title="Priority score">
-        <ScoreChart
-          valueLabel="Priority"
-          domain={[0, 1]}
-          data={response.predictions.map((p) => ({ label: p.candidate_id, value: p.score }))}
-        />
-      </Card>
-      <Card title="Candidate target genes">
-        <div className="-mx-4 -my-4 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-line text-left text-xs text-ink-3">
-              <tr>
-                <th className="w-8 px-3 py-2 font-medium">#</th>
-                <th className="px-3 py-2 font-medium">Gene</th>
-                <th className="px-3 py-2 text-right font-medium">Priority</th>
-                <th className="px-3 py-2 font-medium">Evidence</th>
-                <th className="w-8 px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {response.predictions.map((prediction) => {
-                const info = prediction.candidate_annotations as unknown as TargetAnnotations;
-                const open = expanded === prediction.candidate_id;
-                const best = info.reagents[0];
-                return (
-                  <Fragment key={prediction.candidate_id}>
-                    <tr className="border-b border-line align-top">
-                      <td className="tabular px-3 py-2 text-ink-3">{prediction.rank}</td>
-                      <td className="px-3 py-2">
-                        <Link
-                          href={`/genes/${encodeURIComponent(prediction.candidate_id)}`}
-                          className="font-medium text-accent hover:underline"
-                        >
-                          {prediction.candidate_id}
-                        </Link>
-                        {info.annotated_target_of_query && (
-                          <div className="mt-1">
-                            <Badge tone="ok">Known target of query</Badge>
-                          </div>
-                        )}
-                      </td>
-                      <td className="tabular px-3 py-2 text-right font-medium">{formatScore(prediction.score, 2)}</td>
-                      <td className="px-3 py-2 text-xs text-ink-2">
-                        <p>
-                          <span className="text-ink-3">Phenotype:</span> {topPercent(info.phenotypic_score * 100)} ·{" "}
-                          {best?.perturbation_type?.toUpperCase()} {formatSigned(best?.cosine, 2)} ·{" "}
-                          {info.n_strong_reagents}/{info.n_reagents} reagents strong
-                        </p>
-                        <p>
-                          <span className="text-ink-3">Similar compounds hitting it:</span>{" "}
-                          {info.supporting_compounds.length === 0
-                            ? "none"
-                            : `${Math.round(info.neighbor_support * 100)}% · ${info.supporting_compounds
-                                .slice(0, 2)
-                                .map((c) => c.compound_name ?? c.compound_id)
-                                .join(", ")}${info.supporting_compounds.length > 2 ? "…" : ""}`}
-                        </p>
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => setExpanded(open ? null : prediction.candidate_id)}
-                          aria-expanded={open}
-                          aria-label={`Details for ${prediction.candidate_id}`}
-                          className="text-ink-3 hover:text-ink"
-                        >
-                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </button>
-                      </td>
-                    </tr>
-                    {open && (
-                      <tr className="border-b border-line bg-surface-2/40">
-                        <td />
-                        <td colSpan={4} className="px-3 py-3">
-                          <div className="grid gap-4 sm:grid-cols-3">
-                            <div className="min-w-0">
-                              <p className="mb-1 text-xs font-medium text-ink-2">Genetic reagents</p>
-                              <ul className="space-y-0.5 text-xs">
-                                {info.reagents.map((reagent) => (
-                                  <li key={reagent.perturbation_id} className="flex justify-between gap-2">
-                                    <span className="truncate font-mono text-ink-2" title={reagent.perturbation_id}>
-                                      {reagent.perturbation_type?.toUpperCase()} {reagent.perturbation_id}
-                                    </span>
-                                    <span className="tabular shrink-0 text-ink-3">
-                                      {formatSigned(reagent.cosine, 2)} · {topPercent(reagent.percentile)}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                            <CompoundList
-                              title={`Similar compounds annotated to ${prediction.candidate_id}`}
-                              items={info.supporting_compounds}
-                              empty="None among the nearest compounds."
-                            />
-                            <CompoundList
-                              title={`All compounds annotated to ${prediction.candidate_id} (${info.n_known_compounds})`}
-                              items={info.known_compounds}
-                              empty="No imported compound lists this gene as a target."
-                            />
-                          </div>
-                          <p className="mt-2 text-[11px] text-ink-3">
-                            Priority = (phenotype percentile + {weight} × similar-compound share) / {1 + weight}. Compound
-                            similarities are to the query.
-                          </p>
-                        </td>
-                      </tr>
+    <TableFrame>
+      <table className={TABLE}>
+        <thead className={THEAD}>
+          <tr>
+            <th className={`${TH} w-8`}>#</th>
+            <th className={TH}>Gene</th>
+            <th className={`${TH} text-right`}>
+              <span className="inline-flex items-center gap-1">
+                Priority
+                <InfoTip side="bottom">
+                  (phenotype percentile + {weight} x similar-compound share) / {1 + weight}. 1 is the strongest
+                  possible evidence.
+                </InfoTip>
+              </span>
+            </th>
+            <th className={TH}>Phenotype match</th>
+            <th className={TH}>Similar compounds acting on it</th>
+            <th className={`${TH} w-8`}>
+              <span className="sr-only">Details</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {response.predictions.map((prediction) => {
+            const info = prediction.candidate_annotations as unknown as TargetAnnotations;
+            const best = info.reagents[0];
+            const open = expanded === prediction.candidate_id;
+            const isSelected = best !== undefined && selected === best.perturbation_id;
+            return (
+              <Fragment key={prediction.candidate_id}>
+                <tr {...selectableRow(isSelected, () => best && onSelect(best.perturbation_id))}>
+                  <td className={`${TD} tabular text-ink-3`}>{prediction.rank}</td>
+                  <td className={TD}>
+                    <Link
+                      href={`/genes/${encodeURIComponent(prediction.candidate_id)}`}
+                      onClick={(event) => event.stopPropagation()}
+                      className="font-medium text-ink hover:text-accent hover:underline"
+                    >
+                      {prediction.candidate_id}
+                    </Link>
+                    {info.annotated_target_of_query && (
+                      <span className="block text-[12px] text-accent">Annotated target of query</span>
                     )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function MatchTable({ response }: { response: AnalysisResponse }) {
-  return (
-    <Card title="Genetic perturbations resembling the compound">
-      <div className="-mx-4 -my-4 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="border-b border-line text-left text-xs text-ink-3">
-            <tr>
-              <th className="w-8 px-3 py-2 font-medium">#</th>
-              <th className="px-3 py-2 font-medium">Gene</th>
-              <th className="px-3 py-2 font-medium">Reagent</th>
-              <th className="px-3 py-2 text-right font-medium">Cosine</th>
-              <th className="px-3 py-2 text-right font-medium">vs. all pairs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {response.predictions.map((prediction) => {
-              const info = prediction.candidate_annotations as unknown as MatchAnnotations;
-              return (
-                <tr key={prediction.candidate_id} className="border-b border-line last:border-0">
-                  <td className="tabular px-3 py-2 text-ink-3">{prediction.rank}</td>
-                  <td className="px-3 py-2">
-                    {info.gene_symbol ? (
-                      <Link
-                        href={`/genes/${encodeURIComponent(info.gene_id ?? info.gene_symbol)}`}
-                        className="font-medium text-accent hover:underline"
-                      >
-                        {info.gene_symbol}
-                      </Link>
+                  </td>
+                  <td className={`${TD} text-right`}>
+                    <Score value={prediction.score} text={formatScore(prediction.score, 2)} />
+                  </td>
+                  <td className={`${TD} text-ink-2`}>
+                    <span className="tabular">{topPercent(info.phenotypic_score * 100)}</span>
+                    <span className="block text-[12px] text-ink-3">
+                      {typeLabel(best?.perturbation_type)} cosine {formatSigned(best?.cosine, 2)} · {info.n_strong_reagents} of{" "}
+                      {info.n_reagents} reagents strong
+                    </span>
+                  </td>
+                  <td className={`${TD} text-ink-2`}>
+                    {info.supporting_compounds.length === 0 ? (
+                      <span className="text-ink-3">None</span>
                     ) : (
-                      <span className="text-ink-3">unknown</span>
+                      <>
+                        <span className="tabular">{Math.round(info.neighbor_support * 100)}%</span>
+                        <span className="block max-w-[16rem] truncate text-[12px] text-ink-3">
+                          {info.supporting_compounds.map((c) => c.compound_name ?? c.compound_id).join(", ")}
+                        </span>
+                      </>
                     )}
                   </td>
-                  <td className="px-3 py-2">
-                    <Badge>{info.perturbation_type?.toUpperCase() ?? "?"}</Badge>{" "}
-                    <span className="font-mono text-xs text-ink-3">{prediction.candidate_id}</span>
+                  <td className={TD}>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setExpanded(open ? null : prediction.candidate_id);
+                      }}
+                      aria-expanded={open}
+                      aria-label={`Evidence for ${prediction.candidate_id}`}
+                      className="rounded p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink"
+                    >
+                      <ChevronRight className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
+                    </button>
                   </td>
-                  <td className="tabular px-3 py-2 text-right">{formatSigned(info.cosine, 2)}</td>
-                  <td className="tabular px-3 py-2 text-right text-ink-2">{topPercent(info.percentile)}</td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+                {open && (
+                  <tr className={`${TR} bg-surface-2`}>
+                    <td />
+                    <td colSpan={5} className="py-4 pr-3">
+                      <div className="grid gap-6 sm:grid-cols-3">
+                        <div className="min-w-0">
+                          <p className="mb-1.5 text-[12px] font-medium text-ink-2">Genetic reagents</p>
+                          <ul className="space-y-1 text-[12.5px]">
+                            {info.reagents.map((reagent) => (
+                              <li key={reagent.perturbation_id} className="flex justify-between gap-3">
+                                <span className="truncate text-ink-2" title={reagent.perturbation_id}>
+                                  {typeLabel(reagent.perturbation_type)}{" "}
+                                  <span className="font-mono text-[11.5px] text-ink-3">{reagent.perturbation_id}</span>
+                                </span>
+                                <span className="tabular shrink-0 text-ink-3">
+                                  {formatSigned(reagent.cosine, 2)} · {topPercent(reagent.percentile)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <CompoundList
+                          title={`Similar compounds annotated to ${prediction.candidate_id}`}
+                          items={info.supporting_compounds}
+                          empty="None among the nearest compounds."
+                        />
+                        <CompoundList
+                          title={`All compounds annotated to ${prediction.candidate_id} (${info.n_known_compounds})`}
+                          items={info.known_compounds}
+                          empty="No imported compound lists this gene as a target."
+                        />
+                      </div>
+                      <p className="mt-3 text-[12px] text-ink-3">Compound similarities are cosines to the query.</p>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </TableFrame>
   );
 }
 
-/** Target prioritization and compound-to-gene matching, kept distinct as two views. */
+function MatchTable({
+  response,
+  selected,
+  onSelect,
+}: {
+  response: AnalysisResponse;
+  selected: string | null;
+  onSelect: (reagentId: string) => void;
+}) {
+  return (
+    <TableFrame>
+      <table className={TABLE}>
+        <thead className={THEAD}>
+          <tr>
+            <th className={`${TH} w-8`}>#</th>
+            <th className={TH}>Gene</th>
+            <th className={TH}>Reagent</th>
+            <th className={`${TH} text-right`}>Cosine</th>
+            <th className={`${TH} text-right`}>Percentile</th>
+          </tr>
+        </thead>
+        <tbody>
+          {response.predictions.map((prediction) => {
+            const info = prediction.candidate_annotations as unknown as MatchAnnotations;
+            return (
+              <tr
+                key={prediction.candidate_id}
+                {...selectableRow(selected === prediction.candidate_id, () => onSelect(prediction.candidate_id))}
+              >
+                <td className={`${TD} tabular text-ink-3`}>{prediction.rank}</td>
+                <td className={TD}>
+                  {info.gene_symbol ? (
+                    <Link
+                      href={`/genes/${encodeURIComponent(info.gene_id ?? info.gene_symbol)}`}
+                      onClick={(event) => event.stopPropagation()}
+                      className="font-medium text-ink hover:text-accent hover:underline"
+                    >
+                      {info.gene_symbol}
+                    </Link>
+                  ) : (
+                    <span className="text-ink-3">Unknown</span>
+                  )}
+                </td>
+                <td className={`${TD} text-ink-2`}>
+                  {typeLabel(info.perturbation_type)}{" "}
+                  <span className="font-mono text-[11.5px] text-ink-3">{prediction.candidate_id}</span>
+                </td>
+                <td className={`${TD} text-right`}>
+                  <Score value={info.cosine} text={formatSigned(info.cosine, 2)} signed />
+                </td>
+                <td className={`${TD} tabular text-right text-ink-2`}>{topPercent(info.percentile)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </TableFrame>
+  );
+}
+
+/** Drug-to-gene matching: prioritised genes and raw reagent matches, with compound vs. reagent images. */
 export function TargetResults({
   prioritized,
   matches,
@@ -226,71 +269,117 @@ export function TargetResults({
   const knownTargets = splitLabels(prioritized.query_annotations.known_target);
   const ranked = (prioritized.details.query_targets_in_ranking ?? []) as { gene: string; rank: number }[];
   const nGenes = Number(prioritized.details.n_genes ?? 0);
+  const weight = Number(prioritized.parameters.neighbor_weight ?? 0);
+  const firstReagent = () =>
+    (prioritized.predictions[0]?.candidate_annotations as unknown as TargetAnnotations | undefined)?.reagents[0]
+      ?.perturbation_id ?? null;
+  const [selected, setSelected] = useState<string | null>(firstReagent);
+  useEffect(() => setSelected(firstReagent()), [prioritized]);
+
+  const top = prioritized.predictions[0];
+  const topInfo = top?.candidate_annotations as unknown as TargetAnnotations | undefined;
+  const selectedGene = (() => {
+    for (const p of prioritized.predictions) {
+      const info = p.candidate_annotations as unknown as TargetAnnotations;
+      if (info.reagents.some((r) => r.perturbation_id === selected)) return p.candidate_id;
+    }
+    const match = matches?.predictions.find((p) => p.candidate_id === selected);
+    return (match?.candidate_annotations as unknown as MatchAnnotations | undefined)?.gene_symbol ?? selected;
+  })();
+  const { summary } = prioritized;
 
   return (
-    <div className="space-y-4">
-      <QueryCompoundCard response={prioritized}>
-        <div>
-          <p className="text-xs text-ink-3">Annotated targets (hidden from the score)</p>
-          {knownTargets.length === 0 ? (
-            <p className="text-ink-3">None</p>
-          ) : (
-            <p className="text-ink-2">
-              {ranked.length > 0
-                ? ranked.map((item) => `${item.gene} ranked #${item.rank} of ${nGenes}`).join(" · ")
-                : `${knownTargets.slice(0, 4).join(", ")} (no genetic reagents for these)`}
-            </p>
-          )}
-        </div>
-      </QueryCompoundCard>
+    <div className="space-y-9">
+      <QuerySummary
+        label="Query compound"
+        name={prioritized.query_name ?? prioritized.query_id}
+        id={prioritized.query_id}
+        href={`/compounds/${encodeURIComponent(prioritized.query_id)}`}
+        facts={[
+          {
+            label: "Annotated targets (not used in scoring)",
+            value: knownTargets.length ? knownTargets.slice(0, 6).join(", ") : <span className="text-ink-3">None</span>,
+          },
+          { label: "Genes scored", value: <span className="tabular">{nGenes}</span> },
+          { label: "Context", value: `${summary.cell_line ?? "Several cell lines"} · ${formatHours(summary.timepoint)}` },
+        ]}
+      />
 
-      <p className="flex items-start gap-2 rounded-lg border border-warn-line bg-warn-soft px-3 py-2 text-xs text-ink-2">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
-        These are candidate associations. A gene whose perturbation resembles a compound&apos;s effect may act
-        upstream, downstream or in parallel to the compound&apos;s real target.
-      </p>
-      {prioritized.message && (
-        <p className="flex items-start gap-2 rounded-lg bg-surface-2 px-3 py-2 text-sm text-ink-2">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          {prioritized.message}
-        </p>
+      {prioritized.message && <Notice>{prioritized.message}</Notice>}
+
+      {top && topInfo && (
+        <Findings
+          items={[
+            <>
+              Top candidate is <Em>{top.candidate_id}</Em> with priority <Em>{formatScore(top.score, 2)}</Em>: its best{" "}
+              {typeLabel(topInfo.reagents[0]?.perturbation_type)} reagent matches the compound with cosine{" "}
+              {formatSigned(topInfo.reagents[0]?.cosine, 2)} ({topPercent(topInfo.phenotypic_score * 100).toLowerCase()} of
+              compound-reagent pairs).
+            </>,
+            knownTargets.length === 0 ? (
+              <>The compound has no annotated targets to check the ranking against.</>
+            ) : ranked.length ? (
+              <>
+                Annotated target{ranked.length > 1 ? "s" : ""}{" "}
+                {ranked.map((item, index) => (
+                  <span key={item.gene}>
+                    <Em>{item.gene}</Em> ranks #{item.rank}
+                    {index < ranked.length - 1 ? ", " : ""}
+                  </span>
+                ))}{" "}
+                of {nGenes} genes.
+              </>
+            ) : (
+              <>None of the annotated targets ({knownTargets.slice(0, 3).join(", ")}) has a genetic reagent in this dataset.</>
+            ),
+            weight > 0 ? (
+              <>
+                Ranking blends phenotype with targets of similar compounds (weight {weight}). For novel chemistry, set the
+                weight to 0 in Parameters.
+              </>
+            ) : (
+              <>Ranking uses the phenotype match alone.</>
+            ),
+          ]}
+        />
       )}
 
-      <div role="tablist" className="flex gap-1 border-b border-line">
-        {(
-          [
-            ["prioritized", "Prioritized genes", "Combined evidence per gene"],
-            ["matches", "Genetic matches", "Raw reagent similarity"],
-          ] as const
-        ).map(([value, label, hint]) => (
-          <button
-            key={value}
-            role="tab"
-            type="button"
-            aria-selected={tab === value}
-            onClick={() => setTab(value)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm ${
-              tab === value ? "border-accent font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"
-            }`}
-            title={hint}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Section
+        title="Candidate genes"
+        description="Select a row to compare cells below. A matching gene may act upstream, downstream or in parallel to the true target."
+      >
+        <div className="space-y-4">
+          <Tabs
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: "prioritized", label: "Prioritised genes", title: "Combined evidence per gene" },
+              { value: "matches", label: "Reagent matches", title: "Raw similarity of every reagent" },
+            ]}
+          />
+          {tab === "prioritized" ? (
+            prioritized.predictions.length ? (
+              <PrioritizedTable response={prioritized} selected={selected} onSelect={setSelected} />
+            ) : (
+              <EmptyState title="No candidate genes" />
+            )
+          ) : matchesError ? (
+            <ApiErrorNotice error={matchesError} />
+          ) : matches ? (
+            <MatchTable response={matches} selected={selected} onSelect={setSelected} />
+          ) : (
+            <EmptyState title="Reagent matches not loaded" />
+          )}
+        </div>
+      </Section>
 
-      {tab === "prioritized" ? (
-        prioritized.predictions.length ? (
-          <PrioritizedTable response={prioritized} />
-        ) : (
-          <EmptyState title="No candidate genes" />
-        )
-      ) : matchesError ? (
-        <ApiErrorNotice error={matchesError} />
-      ) : matches ? (
-        <MatchTable response={matches} />
-      ) : (
-        <EmptyState title="Matches not loaded" />
+      {selected && (
+        <ComparisonPanel
+          first={{ type: "compound", id: prioritized.query_id }}
+          second={{ type: "genetic", id: selected }}
+          firstRole="Compound"
+          secondRole={`Genetic perturbation of ${selectedGene ?? ""}`}
+        />
       )}
     </div>
   );

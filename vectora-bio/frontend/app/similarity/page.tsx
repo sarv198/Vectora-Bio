@@ -1,6 +1,5 @@
 "use client";
 
-import { GitCompareArrows } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
@@ -35,7 +34,7 @@ function SimilarityView() {
     });
   };
 
-  // Arriving from a compound page (?compound=…) runs the search straight away.
+  // Arriving from a compound page (?compound=...) runs the search straight away.
   const autoRan = useRef(false);
   useEffect(() => {
     if (linkedCompound && !autoRan.current) {
@@ -48,48 +47,52 @@ function SimilarityView() {
   return (
     <AnalysisPage
       title="Compound similarity"
-      description="Find compounds whose consensus cellular profile most resembles a query compound, alongside their known annotations."
-      icon={<GitCompareArrows className="h-5 w-5" />}
+      description="Find compounds whose consensus Cell Painting profile most resembles a query compound."
       scoreLabel="Cosine similarity"
       candidateLabel="Compound"
+      submitLabel="Find similar"
       loading={loading}
       error={error}
       response={data}
       onSubmit={() => submit()}
       renderResults={(response) => <SimilarityResults response={response} />}
-      formFields={
+      primary={
+        <Field label="Query compound">
+          <CompoundPicker value={compoundId} onChange={setCompoundId} />
+        </Field>
+      }
+      parameters={
         <>
-          <Field label="Compound">
-            <CompoundPicker value={compoundId} onChange={setCompoundId} />
-          </Field>
           <ContextFields values={context} onChange={setContext} />
-          <Checkbox
-            label="Only compounds with a known MoA"
-            checked={annotatedOnly}
-            onChange={(e) => setAnnotatedOnly(e.target.checked)}
-          />
-          <Field label="Min. replicate agreement" hint="Optional, −1 to 1. Hides compounds whose replicates disagree.">
+          <Field label="Min. replicate agreement" hint="-1 to 1. Hides compounds whose replicate wells disagree.">
             <TextInput
               type="number"
               min={-1}
               max={1}
               step={0.05}
-              placeholder="e.g. 0.3"
+              placeholder="None"
               value={minReplicate}
               onChange={(e) => setMinReplicate(e.target.value)}
             />
           </Field>
+          <Checkbox
+            label="Only compounds with a known MoA"
+            checked={annotatedOnly}
+            onChange={(e) => setAnnotatedOnly(e.target.checked)}
+          />
         </>
       }
       method={
         <>
-          <p>Each compound is the median of its replicate wells, normalized to DMSO controls on the same plate.</p>
-          <p>Candidates are ranked by cosine similarity to the query; the query itself is excluded.</p>
           <p>
-            &ldquo;Among all pairs&rdquo; places each score in the distribution of similarities between every pair of
-            compounds in the same cell line and timepoint.
+            Each compound is the median of its replicate wells, normalised to DMSO controls on the same plate. Candidates
+            are ranked by cosine similarity to the query; the query itself is excluded.
           </p>
-          <p>Annotations come from imported metadata and never affect the score.</p>
+          <p>
+            The percentile places each score among all compound pairs in the same cell line and timepoint, so &ldquo;top
+            1%&rdquo; means only 1% of random pairs are this similar. Annotations come from imported metadata and never
+            affect the score.
+          </p>
         </>
       }
     />

@@ -1,6 +1,5 @@
 "use client";
 
-import { Undo2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
@@ -51,57 +50,57 @@ function RescueView() {
   return (
     <AnalysisPage
       title="Phenotypic rescue"
-      description="Find compounds whose cellular profile opposes a genetic perturbation's phenotype, relative to matched controls."
-      icon={<Undo2 className="h-5 w-5" />}
+      description="Find compounds whose cellular profile opposes the phenotype of a gene knockout or overexpression."
       scoreLabel="Reversal score"
       candidateLabel="Compound"
+      submitLabel="Find rescue candidates"
       loading={loading}
       error={error}
       response={data}
       onSubmit={() => submit()}
       renderResults={(response) => <RescueResults response={response} />}
-      formFields={
+      primary={
+        <Field label="Genetic perturbation">
+          <PerturbationPicker value={perturbationId} onChange={setPerturbationId} />
+        </Field>
+      }
+      parameters={
         <>
-          <Field label="Genetic perturbation">
-            <PerturbationPicker value={perturbationId} onChange={setPerturbationId} />
-          </Field>
           <ContextFields values={context} onChange={setContext} />
-          <Checkbox
-            label="Subtract matched controls"
-            checked={subtractControls}
-            onChange={(e) => setSubtractControls(e.target.checked)}
-          />
-          <Checkbox
-            label="Exclude weak responses"
-            checked={excludeWeak}
-            onChange={(e) => setExcludeWeak(e.target.checked)}
-          />
           {excludeWeak && (
-            <Field label="Min. strength (percentile of controls)" hint="95 = stronger than 95% of DMSO pseudo-replicates.">
+            <Field label="Min. response strength (%)" hint="95 = stronger than 95% of control pseudo-replicates.">
               <TextInput type="number" min={0} max={100} value={minStrength} onChange={(e) => setMinStrength(e.target.value)} />
             </Field>
           )}
-          <Checkbox
-            label="Exclude cell-loss / stress-like compounds"
-            checked={excludeStress}
-            onChange={(e) => setExcludeStress(e.target.checked)}
-          />
+          <div className="space-y-2">
+            <Checkbox
+              label="Subtract matched controls"
+              checked={subtractControls}
+              onChange={(e) => setSubtractControls(e.target.checked)}
+            />
+            <Checkbox label="Exclude weak responses" checked={excludeWeak} onChange={(e) => setExcludeWeak(e.target.checked)} />
+            <Checkbox
+              label="Exclude cell-loss and stress-like compounds"
+              checked={excludeStress}
+              onChange={(e) => setExcludeStress(e.target.checked)}
+            />
+          </div>
         </>
       }
       method={
         <>
           <p>
-            Signature = perturbation profile − matched controls (same cell line, timepoint and reagent type). Compound
-            profiles are control-subtracted the same way.
+            Signature = perturbation profile minus matched controls (same cell line, timepoint and reagent type).
+            Compound profiles are control-subtracted the same way. Reversal score = minus the cosine between them: 1 is
+            exact opposition, 0 unrelated, -1 mimicry.
           </p>
-          <p>Reversal score = −cosine(compound, signature): 1 is exact opposition, 0 unrelated, −1 mimicry.</p>
           <p>
-            <strong>Weak responses</strong> are compounds whose profile is no stronger than the median of 4 random DMSO
-            wells. <strong>Cell loss</strong> uses neighbour/density features as a toxicity proxy (the pilot has no
-            direct cell counts); <strong>generic response</strong> marks profiles that look like many unrelated
-            compounds.
+            <strong className="font-medium text-ink">Weak responses</strong> are compounds no stronger than the median of
+            4 random DMSO wells. <strong className="font-medium text-ink">Cell loss</strong> uses neighbour and density
+            features as a toxicity proxy, since the pilot has no direct cell counts.{" "}
+            <strong className="font-medium text-ink">Generic response</strong> marks profiles that resemble many
+            unrelated compounds.
           </p>
-          <p>Expand a row to see which features drive its score.</p>
         </>
       }
     />
