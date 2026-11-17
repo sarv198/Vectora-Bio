@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { InfoTip } from "@/components/ui";
+
 /** The perturbation an analysis was run for: name, identifier and a few facts, without a box. */
 export function QuerySummary({
   label,
@@ -13,7 +15,7 @@ export function QuerySummary({
   name: string;
   id: string;
   href?: string;
-  facts: { label: string; value: ReactNode }[];
+  facts: { label: string; value: ReactNode; note?: string }[];
 }) {
   return (
     <div className="space-y-3">
@@ -33,7 +35,10 @@ export function QuerySummary({
       <dl className="grid gap-x-8 gap-y-2 text-[13px] sm:grid-cols-2 lg:flex lg:flex-wrap">
         {facts.map((fact) => (
           <div key={fact.label} className="min-w-0 lg:max-w-[22rem]">
-            <dt className="text-[12px] text-ink-3">{fact.label}</dt>
+            <dt className="flex items-center gap-1 text-[12px] text-ink-3">
+              {fact.label}
+              {fact.note && <InfoTip>{fact.note}</InfoTip>}
+            </dt>
             <dd className="text-ink">{fact.value}</dd>
           </div>
         ))}

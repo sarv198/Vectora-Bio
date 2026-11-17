@@ -30,9 +30,15 @@ export function CompoundPicker({
   const listId = useId();
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // A preset id (e.g. from a link) shows the compound's name once it is known.
+  // The last id this picker reported, to tell its own edits from a value set from outside.
+  const emitted = useRef<string | null>(null);
+
+  // An id set from outside (a link, a restored session) shows the compound's name once known.
   useEffect(() => {
-    if (!value || selectedName) return;
+    if (value === emitted.current) return;
+    setText(value);
+    setSelectedName(null);
+    if (!value) return;
     let cancelled = false;
     api
       .getCompound(value)
@@ -46,8 +52,7 @@ export function CompoundPicker({
     return () => {
       cancelled = true;
     };
-    // Runs for the initial value only; later changes come from this component.
-  }, []);
+  }, [value]);
 
   useEffect(() => {
     const query = text.trim();
@@ -79,6 +84,7 @@ export function CompoundPicker({
   const choose = (compound: Compound) => {
     setText(compound.compound_name);
     setSelectedName(compound.compound_name);
+    emitted.current = compound.compound_id;
     onChange(compound.compound_id);
     setOpen(false);
   };
@@ -99,7 +105,8 @@ export function CompoundPicker({
         onChange={(event) => {
           setText(event.target.value);
           setSelectedName(null);
-          onChange(event.target.value.trim());
+          emitted.current = event.target.value.trim();
+          onChange(emitted.current);
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Info, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, Loader2, type LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import type {
   ButtonHTMLAttributes,
@@ -368,14 +368,16 @@ export function Button({
   );
 }
 
-/** Text button that reveals more (parameters, method notes). */
+/** Bordered toggle that reveals more (parameters, method notes). */
 export function DisclosureButton({
   open,
   onToggle,
+  icon: Icon,
   children,
 }: {
   open: boolean;
   onToggle: () => void;
+  icon?: LucideIcon;
   children: ReactNode;
 }) {
   return (
@@ -383,10 +385,41 @@ export function DisclosureButton({
       type="button"
       aria-expanded={open}
       onClick={onToggle}
-      className="inline-flex items-center gap-1 text-[12.5px] text-ink-2 hover:text-ink"
+      className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium ${
+        open
+          ? "border-accent-line bg-accent-soft text-accent"
+          : "border-line-strong bg-surface text-ink hover:border-ink-3"
+      }`}
     >
+      {Icon && <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden />}
       {children}
       <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+    </button>
+  );
+}
+
+/**
+ * The expand control at the end of a table row. Drawn as a small bordered square; an invisible
+ * margin around it (the ::before box) widens the hover and click target without moving layout.
+ */
+export function RowExpander({ open, onToggle, label }: { open: boolean; onToggle?: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle?.();
+      }}
+      aria-expanded={open}
+      aria-label={label}
+      title={open ? "Hide details" : "Show details"}
+      className={`relative inline-flex h-6 w-6 items-center justify-center rounded-md border before:absolute before:-inset-2.5 before:content-[''] ${
+        open
+          ? "border-accent bg-accent text-accent-ink"
+          : "border-line-strong bg-surface text-ink-2 hover:border-accent hover:bg-accent-soft hover:text-accent"
+      }`}
+    >
+      <ChevronRight className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2} aria-hidden />
     </button>
   );
 }
@@ -469,6 +502,8 @@ export const THEAD = "border-b border-line text-left";
 export const TH = "px-3 py-2 text-[12px] font-medium whitespace-nowrap text-ink-3 first:pl-2 last:pr-2";
 export const TD = "px-3 py-2.5 align-top first:pl-2 last:pr-2";
 export const TR = "border-b border-line last:border-0";
+/** Cell holding a RowExpander: extra right padding so its widened hit area stays inside the table. */
+export const TD_EXPANDER = "w-12 px-3 py-2 pr-4! text-right align-top";
 
 /** Props that make a table row selectable by click or keyboard. */
 export function selectableRow(selected: boolean, onSelect: () => void) {

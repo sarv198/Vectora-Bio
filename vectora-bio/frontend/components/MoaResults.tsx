@@ -1,8 +1,7 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 
 import { ComparisonPanel } from "@/components/PerturbationPanels";
 import { Em, Findings, QuerySummary } from "@/components/QuerySummary";
@@ -10,10 +9,12 @@ import {
   EmptyState,
   InfoTip,
   Notice,
+  RowExpander,
   Score,
   Section,
   TABLE,
   TD,
+  TD_EXPANDER,
   TH,
   THEAD,
   TR,
@@ -21,6 +22,7 @@ import {
   selectableRow,
 } from "@/components/ui";
 import { formatHours, formatScore, splitLabels } from "@/lib/format";
+import { resultStamp, useResultChoice } from "@/lib/session";
 import type { AnalysisResponse, MoaAnnotations, MoaCalibration, MoaNeighbor } from "@/lib/types";
 
 function percent(value: number | null | undefined): string {
@@ -37,8 +39,11 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
   const calibration = (response.details.calibration ?? null) as MoaCalibration | null;
   const neighbors = (response.details.neighbors ?? []) as MoaNeighbor[];
   const nAnnotated = Number(response.details.n_annotated_neighbors ?? 0);
-  const [selected, setSelected] = useState<string | null>(neighbors[0]?.compound_id ?? null);
-  useEffect(() => setSelected(neighbors[0]?.compound_id ?? null), [response]);
+  const [selected, setSelected] = useResultChoice<string | null>(
+    "moa.selected",
+    resultStamp(response),
+    neighbors[0]?.compound_id ?? null,
+  );
   const top = response.predictions[0];
   const topInfo = top?.candidate_annotations as unknown as MoaAnnotations | undefined;
   const selectedNeighbor = neighbors.find((n) => n.compound_id === selected);
@@ -53,7 +58,8 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
         href={`/compounds/${encodeURIComponent(response.query_id)}`}
         facts={[
           {
-            label: "Annotated mechanism (hidden from inference)",
+            label: "Annotated mechanism",
+            note: "Hidden from inference; shown only to check the call.",
             value: queryMoa.length ? queryMoa.join(", ") : <span className="text-ink-3">None: this is a true prediction</span>,
           },
           { label: "Annotated neighbours", value: <span className="tabular">{`${nAnnotated} of ${neighbors.length}`}</span> },
@@ -70,25 +76,25 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
           <Findings
             items={[
               <>
-                Most likely mechanism is <Em>{top.candidate_id}</Em>, with calibrated confidence{" "}
-                <Em>{percent(topInfo.confidence)}</Em> ({percent(topInfo.vote_share)} of the vote, from{" "}
-                {topInfo.n_supporting} of {topInfo.n_annotated_neighbors} annotated neighbours).
+                Most likely: <Em>{top.candidate_id}</Em>, confidence <Em>{percent(topInfo.confidence)}</Em> (
+                {percent(topInfo.vote_share)} of the vote, {topInfo.n_supporting} of {topInfo.n_annotated_neighbors}{" "}
+                annotated neighbours).
               </>,
               topInfo.matches_query_annotation === true ? (
-                <>This matches the compound&apos;s hidden annotation.</>
+                <>Matches the hidden annotation.</>
               ) : topInfo.matches_query_annotation === false ? (
-                <>This differs from the compound&apos;s annotation ({queryMoa.join(", ")}).</>
+                <>Differs from the annotation ({queryMoa.join(", ")}).</>
               ) : null,
               calibration ? (
                 <>
-                  For reference, the top call recovers the hidden mechanism for {percent(calibration.top1_accuracy)} of{" "}
-                  {calibration.n_compounds} annotated compounds, so treat calls as leads to test, not conclusions.
+                  Top calls are right for <Em>{percent(calibration.top1_accuracy)}</Em> of {calibration.n_compounds}{" "}
+                  annotated compounds: treat them as leads.
                 </>
               ) : null,
             ]}
           />
 
-          <Section title="Candidate mechanisms" description="Expand a mechanism to see the compounds that voted for it.">
+          <Section title="Candidate mechanisms">
             <TableFrame>
               <table className={TABLE}>
                 <thead className={THEAD}>
@@ -143,11 +149,8 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
                               mean cosine {formatScore(info.mean_similarity, 2)}
                             </span>
                           </td>
-                          <td className={TD}>
-                            <ChevronRight
-                              className={`h-4 w-4 text-ink-3 transition-transform ${open ? "rotate-90" : ""}`}
-                              aria-hidden
-                            />
+                          <td className={TD_EXPANDER}>
+                            <RowExpander open={open} onToggle={toggle} label={`Compounds voting for ${prediction.candidate_id}`} />
                           </td>
                         </tr>
                         {open && (
@@ -169,8 +172,8 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
                                 ))}
                               </ul>
                               <p className="mt-2 text-[12px] text-ink-3">
-                                {info.label_frequency} other compound{info.label_frequency === 1 ? "" : "s"} in the
-                                reference set carry this label.
+                                {info.label_frequency} other compound{info.label_frequency === 1 ? "" : "s"} carry this
+                                label.
                               </p>
                             </td>
                           </tr>
@@ -186,10 +189,7 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
       )}
 
       {neighbors.length > 0 && (
-        <Section
-          title="Nearest compounds"
-          description="The evidence behind the vote. Select a row to compare its cells with the query."
-        >
+        <Section title="Nearest compounds" description="Select a row to compare cells.">
           <TableFrame>
             <table className={TABLE}>
               <thead className={THEAD}>

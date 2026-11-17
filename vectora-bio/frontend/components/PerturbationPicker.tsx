@@ -18,9 +18,15 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
   const listId = useId();
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // A preset reagent id (e.g. from a link) shows its gene symbol once it is known.
+  // The last id this picker reported, to tell its own edits from a value set from outside.
+  const emitted = useRef<string | null>(null);
+
+  // A reagent id set from outside (a link, a restored session) shows its gene symbol once known.
   useEffect(() => {
-    if (!value || selected) return;
+    if (value === emitted.current) return;
+    setText(value);
+    setSelected(null);
+    if (!value) return;
     let cancelled = false;
     api
       .listGenes({ search: value, limit: 5 })
@@ -35,8 +41,7 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
     return () => {
       cancelled = true;
     };
-    // Runs for the initial value only; later changes come from this component.
-  }, []);
+  }, [value]);
 
   useEffect(() => {
     const query = text.trim();
@@ -65,6 +70,7 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
   const choose = (item: GeneticPerturbation) => {
     setSelected(item);
     setText(item.gene_symbol);
+    emitted.current = item.perturbation_id;
     onChange(item.perturbation_id);
     setOpen(false);
   };
@@ -84,7 +90,8 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
         onChange={(event) => {
           setText(event.target.value);
           setSelected(null);
-          onChange(event.target.value.trim());
+          emitted.current = event.target.value.trim();
+          onChange(emitted.current);
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef } from "react";
 
 import { AnalysisPage, ContextFields, DEFAULT_CONTEXT } from "@/components/AnalysisPage";
 import { PerturbationPicker } from "@/components/PerturbationPicker";
@@ -10,21 +10,23 @@ import { Checkbox, Field, LoadingState, TextInput } from "@/components/ui";
 import { api } from "@/lib/api";
 import { optionalNumber, optionalText } from "@/lib/format";
 import { useApiMutation } from "@/lib/hooks";
+import { readSession, useSessionState } from "@/lib/session";
 
 function RescueView() {
   const router = useRouter();
   const params = useSearchParams();
   const linked = params.get("perturbation") ?? "";
-  const [perturbationId, setPerturbationId] = useState(linked);
-  const [context, setContext] = useState(DEFAULT_CONTEXT);
-  const [subtractControls, setSubtractControls] = useState(true);
-  const [excludeWeak, setExcludeWeak] = useState(true);
-  const [minStrength, setMinStrength] = useState("95");
-  const [excludeStress, setExcludeStress] = useState(false);
-  const { data, error, loading, run } = useApiMutation(api.searchRescue);
+  const [perturbationId, setPerturbationId] = useSessionState("rescue.query", linked);
+  const [context, setContext] = useSessionState("rescue.context", DEFAULT_CONTEXT);
+  const [subtractControls, setSubtractControls] = useSessionState("rescue.subtractControls", true);
+  const [excludeWeak, setExcludeWeak] = useSessionState("rescue.excludeWeak", true);
+  const [minStrength, setMinStrength] = useSessionState("rescue.minStrength", "95");
+  const [excludeStress, setExcludeStress] = useSessionState("rescue.excludeStress", false);
+  const { data, error, loading, run } = useApiMutation(api.searchRescue, "rescue.result");
 
   const submit = (id = perturbationId) => {
     if (!id) return;
+    setPerturbationId(id);
     router.replace(`/rescue?perturbation=${encodeURIComponent(id)}`, { scroll: false });
     void run({
       perturbation_id: id,
@@ -42,6 +44,8 @@ function RescueView() {
   useEffect(() => {
     if (linked && !autoRan.current) {
       autoRan.current = true;
+      // Coming back to a result already on screen for this tab should not rerun it.
+      if (readSession<{ query_id: string }>("rescue.result")?.query_id === linked) return;
       submit(linked);
     }
     // Run once for a perturbation linked via ?perturbation=.
@@ -50,7 +54,7 @@ function RescueView() {
   return (
     <AnalysisPage
       title="Phenotypic rescue"
-      description="Find compounds whose cellular profile opposes the phenotype of a gene knockout or overexpression."
+      description="Find compounds that push cells the opposite way to a gene knockout or overexpression."
       scoreLabel="Reversal score"
       candidateLabel="Compound"
       submitLabel="Find rescue candidates"
@@ -68,7 +72,7 @@ function RescueView() {
         <>
           <ContextFields values={context} onChange={setContext} />
           {excludeWeak && (
-            <Field label="Min. response strength (%)" hint="95 = stronger than 95% of control pseudo-replicates.">
+            <Field label="Min. response strength (%)" hint="95 = stronger than 95% of controls.">
               <TextInput type="number" min={0} max={100} value={minStrength} onChange={(e) => setMinStrength(e.target.value)} />
             </Field>
           )}
@@ -100,6 +104,10 @@ function RescueView() {
             features as a toxicity proxy, since the pilot has no direct cell counts.{" "}
             <strong className="font-medium text-ink">Generic response</strong> marks profiles that resemble many
             unrelated compounds.
+          </p>
+          <p>
+            These are computational candidates: an opposing profile can come from an unrelated mechanism and must be
+            confirmed experimentally.
           </p>
         </>
       }

@@ -2,7 +2,6 @@
 
 import { Check } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
 import { ComparisonPanel } from "@/components/PerturbationPanels";
 import { Em, Findings, QuerySummary } from "@/components/QuerySummary";
@@ -20,6 +19,7 @@ import {
   selectableRow,
 } from "@/components/ui";
 import { formatCount, formatHours, formatScore, splitLabels, topPercent } from "@/lib/format";
+import { resultStamp, useResultChoice } from "@/lib/session";
 import type { AnalysisResponse, CompoundQueryAnnotations, SimilarityAnnotations } from "@/lib/types";
 
 const MAX_TARGETS_SHOWN = 3;
@@ -58,8 +58,11 @@ function targetsText(value: string | null): string {
 export function SimilarityResults({ response }: { response: AnalysisResponse }) {
   const query = response.query_annotations as unknown as CompoundQueryAnnotations;
   const { summary, predictions } = response;
-  const [selected, setSelected] = useState<string | null>(predictions[0]?.candidate_id ?? null);
-  useEffect(() => setSelected(predictions[0]?.candidate_id ?? null), [response]);
+  const [selected, setSelected] = useResultChoice<string | null>(
+    "similarity.selected",
+    resultStamp(response),
+    predictions[0]?.candidate_id ?? null,
+  );
 
   const info = (id: string) =>
     predictions.find((p) => p.candidate_id === id)?.candidate_annotations as unknown as SimilarityAnnotations;
@@ -98,10 +101,9 @@ export function SimilarityResults({ response }: { response: AnalysisResponse }) 
           <Findings
             items={[
               <>
-                Nearest compound is <Em>{top.candidate_name ?? top.candidate_id}</Em> with cosine{" "}
-                <Em>{formatScore(top.score, 2)}</Em>
+                Nearest: <Em>{top.candidate_name ?? top.candidate_id}</Em>, cosine <Em>{formatScore(top.score, 2)}</Em>
                 {info(top.candidate_id).score_percentile !== null
-                  ? `, in the ${topPercent(info(top.candidate_id).score_percentile).toLowerCase()} of all compound pairs.`
+                  ? ` (${topPercent(info(top.candidate_id).score_percentile).toLowerCase()} of compound pairs).`
                   : "."}
               </>,
               queryMoa.length ? (
@@ -109,26 +111,24 @@ export function SimilarityResults({ response }: { response: AnalysisResponse }) 
                   <Em>
                     {sharing.length} of {predictions.length}
                   </Em>{" "}
-                  neighbours share an annotated mechanism with the query
-                  {sharedLabels.length ? ` (${sharedLabels.join(", ")})` : ""}.
+                  share the query&apos;s mechanism{sharedLabels.length ? ` (${sharedLabels.join(", ")})` : ""}.
                 </>
               ) : (
                 <>
-                  The query has no mechanism annotation; {nAnnotated} of {predictions.length} neighbours are annotated and
-                  may suggest one.
+                  Query mechanism unknown; {nAnnotated} of {predictions.length} neighbours are annotated.
                 </>
               ),
               nTop1 > 0 ? (
                 <>
-                  {nTop1} neighbour{nTop1 === 1 ? " is" : "s are"} in the top 1% of all compound-pair similarities.
+                  <Em>{nTop1}</Em> in the top 1% of compound pairs.
                 </>
               ) : (
-                <>No neighbour reaches the top 1% of compound-pair similarities, so matches are weak.</>
+                <>None in the top 1% of compound pairs: matches are weak.</>
               ),
             ]}
           />
 
-          <Section title="Ranked neighbours" description="Select a row to compare its cells with the query below.">
+          <Section title="Ranked neighbours" description="Select a row to compare cells.">
             <TableFrame>
               <table className={TABLE}>
                 <thead className={THEAD}>
@@ -194,9 +194,8 @@ export function SimilarityResults({ response }: { response: AnalysisResponse }) 
                 </tbody>
               </table>
             </TableFrame>
-            <p className="mt-2 text-[12px] text-ink-3">
-              Phenotypic similarity suggests, but does not establish, a shared mechanism. Mechanisms in teal are shared with
-              the query.
+            <p className="mt-2 inline-flex items-center gap-1 text-[12px] text-ink-3">
+              <Check className="h-3.5 w-3.5 text-accent" aria-hidden /> shared with the query
             </p>
           </Section>
 

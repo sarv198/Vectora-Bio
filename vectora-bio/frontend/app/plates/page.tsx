@@ -10,6 +10,7 @@ import { Field, LoadingState, PageHeader, Section, Select } from "@/components/u
 import { api } from "@/lib/api";
 import { formatHours } from "@/lib/format";
 import { useApiQuery } from "@/lib/hooks";
+import { readSession, writeSession } from "@/lib/session";
 import type { PlateLayout, PlateWell } from "@/lib/types";
 
 const ROWS = "ABCDEFGHIJKLMNOP".split("");
@@ -110,7 +111,7 @@ function PlateMap({
               </p>
             </>
           ) : (
-            <p className="text-ink-3">Hover a well to identify it; click to view its cells.</p>
+            <p className="text-ink-3">Hover to identify, click to view.</p>
           )}
         </div>
       </div>
@@ -195,6 +196,19 @@ function PlatesView() {
   const go = (nextPlate: string, well?: string | null) =>
     router.replace(`/plates?plate=${encodeURIComponent(nextPlate)}${well ? `&well=${well}` : ""}`, { scroll: false });
 
+  // Reopening Plates from the sidebar returns to the last plate and well viewed in this tab.
+  useEffect(() => {
+    if (params.get("plate")) return;
+    const last = readSession<{ plate: string; well: string | null }>("plates.last");
+    if (!last?.plate) return;
+    setSelected(last.well);
+    go(last.plate, last.well);
+    // Mount only.
+  }, []);
+  useEffect(() => {
+    if (plate && layout.data?.plate === plate) writeSession("plates.last", { plate, well: selected });
+  }, [plate, selected, layout.data]);
+
   const selectedWell = layout.data?.wells.find((w) => w.well === selected) ?? null;
   const groups = useMemo(() => {
     const map = new Map<string, NonNullable<typeof plates.data>>();
@@ -210,7 +224,7 @@ function PlatesView() {
       <PageHeader
         context="Library"
         title="Plates"
-        description="The imaged 384-well plates. Select a well to view its Cell Painting field beside a negative control from the same plate."
+        description="Select a well to view its cells beside a same-plate control."
       />
       {plates.error ? (
         <ApiErrorNotice error={plates.error} />

@@ -3,7 +3,7 @@
 import { ImageOff, Loader2, Maximize2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { Segmented, Select } from "@/components/ui";
+import { InfoTip, Segmented, Select } from "@/components/ui";
 import { wellImageUrl } from "@/lib/api";
 
 /** Stain channels in display order, with the pseudo-colours the backend blends them in. */
@@ -251,10 +251,12 @@ export function WellView({
 
 export function ImageSourceNote() {
   return (
-    <p className="max-w-[90ch] text-[12px] leading-relaxed text-ink-3">
-      Raw fields from the JUMP Cell Painting pilot (CPJUMP1, U2OS, 20x, 0.6 µm per pixel), loaded on first view and
-      cached locally. Each image uses the display range of a negative-control well on the same plate, so brightness
-      differences are real. Background is set per image.
+    <p className="flex items-center gap-1.5 text-[12px] text-ink-3">
+      JUMP pilot CPJUMP1 · U2OS · 20x
+      <InfoTip>
+        Raw fields (0.6 µm per pixel), loaded on first view and cached locally. Each image uses the display range of a
+        negative-control well on the same plate, so brightness differences are real. Background is set per image.
+      </InfoTip>
     </p>
   );
 }

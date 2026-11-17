@@ -209,6 +209,65 @@ function ColumnHeader({ overview, role }: { overview: ProfileOverview; role: str
 }
 
 /**
+ * The comparison's one number, large, on a -1 to 1 scale with labelled ends, so the score can be
+ * read at a glance rather than found in the section header.
+ */
+function ScoreReadout({ value, mode }: { value: number; mode: "similarity" | "reversal" }) {
+  const clamped = Math.max(-1, Math.min(1, value));
+  const half = Math.abs(clamped) * 50;
+  const fill = clamped >= 0 ? "var(--accent)" : "var(--div-neg-2)";
+  const ends = mode === "reversal" ? ["Mimics", "Reverses"] : ["Opposite", "Identical"];
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border border-line bg-surface px-4 py-3">
+      <div>
+        <p className="flex items-center gap-1 text-[12.5px] font-medium text-ink-2">
+          {mode === "reversal" ? "Reversal score" : "Cosine similarity"}
+          <InfoTip>
+            {mode === "reversal"
+              ? "Minus the cosine between the control-subtracted profiles: 1 is exact opposition, 0 unrelated, -1 the compound mimics the gene. Same value as the table."
+              : "Cosine between the two consensus profiles: 1 identical, 0 unrelated, -1 opposite. Same value as the table."}
+          </InfoTip>
+        </p>
+        <p className={`tabular text-[30px] leading-none font-semibold ${clamped >= 0 ? "text-accent" : "text-ink"}`}>
+          {formatScore(value, 2)}
+        </p>
+      </div>
+      <div className="w-full max-w-[22rem] min-w-[14rem] flex-1">
+        <div className="relative h-2.5 rounded-full bg-surface-3" aria-hidden>
+          <span className="absolute top-[-3px] bottom-[-3px] left-1/2 w-px bg-line-strong" />
+          <span
+            className="absolute top-0 bottom-0 rounded-full"
+            style={{ width: `${half}%`, left: clamped >= 0 ? "50%" : undefined, right: clamped < 0 ? "50%" : undefined, background: fill }}
+          />
+          <span
+            className="absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink"
+            style={{ left: `${(clamped + 1) * 50}%` }}
+          />
+        </div>
+        <div className="mt-1.5 grid grid-cols-3 text-[11.5px] text-ink-3">
+          <span>-1 {ends[0]}</span>
+          <span className="text-center">0</span>
+          <span className="text-right">
+            {ends[1]} 1
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Top single-feature changes of one perturbation, under its phenotype map. */
+function TopChanges({ overview }: { overview: ProfileOverview }) {
+  if (overview.top_features.length === 0) return null;
+  return (
+    <div className="mt-4">
+      <h4 className="mb-0.5 text-[12.5px] font-medium text-ink-2">Largest changes vs. control</h4>
+      <FeatureChangeList features={overview.top_features.slice(0, 5)} />
+    </div>
+  );
+}
+
+/**
  * Side-by-side visual comparison of two perturbations: images (optionally with same-plate
  * controls), both phenotype maps, and where the two profiles agree or oppose.
  */
@@ -248,24 +307,11 @@ export function ComparisonPanel({
   if (!a.data || !b.data) return <LoadingState label="Loading profiles" />;
 
   const cosine = comparison.data?.cosine;
-  const headline =
-    cosine === undefined
-      ? null
-      : mode === "reversal"
-        ? `Reversal score ${formatScore(-cosine, 2)}`
-        : `Overall cosine ${formatScore(cosine, 2)}`;
 
   return (
-    <Section
-      title={title ?? `${perturbationTitle(a.data)} compared with ${perturbationTitle(b.data)}`}
-      description={
-        mode === "reversal"
-          ? "Images of both perturbations with their controls, and where the compound pushes features back."
-          : "Cells from both perturbations on the same display scale, and where their profiles agree."
-      }
-      actions={headline && <span className="tabular text-[13px] font-medium text-ink">{headline}</span>}
-    >
+    <Section title={title ?? `${perturbationTitle(a.data)} compared with ${perturbationTitle(b.data)}`}>
       <div className="space-y-6">
+        {cosine !== undefined && <ScoreReadout value={mode === "reversal" ? -cosine : cosine} mode={mode} />}
         <div className="flex flex-wrap items-center justify-between gap-3 border-y border-line py-2">
           <ViewerControls settings={settings} onChange={setSettings} />
           <Checkbox label="Show same-plate controls" checked={showControls} onChange={(e) => setShowControls(e.target.checked)} />
@@ -286,16 +332,16 @@ export function ComparisonPanel({
           ))}
         </div>
         <div className="grid gap-8 lg:grid-cols-3">
-          <div>
-            <h3 className="mb-2 flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
-              {perturbationTitle(a.data)} <InfoTip>{MAP_HINT}</InfoTip>
-            </h3>
-            <PhenotypeMap cells={a.data.phenotype_map} />
-          </div>
-          <div>
-            <h3 className="mb-2 text-[13.5px] font-medium text-ink">{perturbationTitle(b.data)}</h3>
-            <PhenotypeMap cells={b.data.phenotype_map} />
-          </div>
+          {[a.data, b.data].map((overview, index) => (
+            <div key={`${index}-${overview.perturbation_id}`} className="min-w-0">
+              <h3 className="mb-2 flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
+                {perturbationTitle(overview)}: phenotype map
+                {index === 0 && <InfoTip>{MAP_HINT}</InfoTip>}
+              </h3>
+              <PhenotypeMap cells={overview.phenotype_map} />
+              <TopChanges overview={overview} />
+            </div>
+          ))}
           {comparison.data && (
             <div>
               <h3 className="mb-2 flex items-center gap-1.5 text-[13.5px] font-medium text-ink">

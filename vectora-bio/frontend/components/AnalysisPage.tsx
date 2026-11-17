@@ -1,5 +1,6 @@
 "use client";
 
+import { BookOpen, SlidersHorizontal } from "lucide-react";
 import { type FormEvent, type ReactNode, useState } from "react";
 
 import { ApiErrorNotice } from "@/components/ApiErrorNotice";
@@ -16,6 +17,9 @@ export interface ContextValues {
 
 export const DEFAULT_CONTEXT: ContextValues = { cellLine: "", timepoint: "", topK: "10" };
 
+/** Similarity and drug-to-gene tables list the top 5 unless more are asked for. */
+export const SHORT_CONTEXT: ContextValues = { ...DEFAULT_CONTEXT, topK: "5" };
+
 /** Cell line / timepoint / result count, shared by every analysis's parameters. */
 export function ContextFields({
   values,
@@ -31,10 +35,10 @@ export function ContextFields({
       <Field label={topKLabel}>
         <TextInput type="number" min={1} max={500} value={values.topK} onChange={(e) => onChange({ ...values, topK: e.target.value })} />
       </Field>
-      <Field label="Cell line" hint="Only needed if profiles span several.">
+      <Field label="Cell line">
         <TextInput value={values.cellLine} onChange={(e) => onChange({ ...values, cellLine: e.target.value })} placeholder="Any" />
       </Field>
-      <Field label="Timepoint (h)" hint="Only needed if profiles span several.">
+      <Field label="Timepoint (h)">
         <TextInput
           type="number"
           min={0}
@@ -107,13 +111,17 @@ export function AnalysisPage({
               </Button>
             </div>
           </div>
-          <div className="flex flex-wrap gap-5 border-t border-line px-4 py-2.5">
+          <div className="flex flex-wrap gap-2 border-t border-line px-4 py-2.5">
             {parameters && (
-              <DisclosureButton open={showParameters} onToggle={() => setShowParameters((v) => !v)}>
+              <DisclosureButton
+                icon={SlidersHorizontal}
+                open={showParameters}
+                onToggle={() => setShowParameters((v) => !v)}
+              >
                 Parameters
               </DisclosureButton>
             )}
-            <DisclosureButton open={showMethod} onToggle={() => setShowMethod((v) => !v)}>
+            <DisclosureButton icon={BookOpen} open={showMethod} onToggle={() => setShowMethod((v) => !v)}>
               How it works
             </DisclosureButton>
           </div>
@@ -141,7 +149,7 @@ export function AnalysisPage({
           </div>
         ) : (
           <EmptyState title="No analysis run yet">
-            {emptyHint ?? "Choose a query above and run the analysis. Results show the ranked evidence, cell images and phenotype maps."}
+            {emptyHint ?? "Choose a query above and run it."}
           </EmptyState>
         )}
       </div>

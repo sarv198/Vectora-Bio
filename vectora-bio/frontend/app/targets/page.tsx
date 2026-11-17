@@ -1,15 +1,16 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef } from "react";
 
-import { AnalysisPage, ContextFields, DEFAULT_CONTEXT } from "@/components/AnalysisPage";
+import { AnalysisPage, ContextFields, SHORT_CONTEXT } from "@/components/AnalysisPage";
 import { CompoundPicker } from "@/components/CompoundPicker";
 import { TargetResults } from "@/components/TargetResults";
 import { Checkbox, Field, LoadingState, TextInput } from "@/components/ui";
 import { api } from "@/lib/api";
 import { optionalNumber, optionalText } from "@/lib/format";
 import { useApiMutation } from "@/lib/hooks";
+import { readSession, useSessionState } from "@/lib/session";
 import type { GeneticPerturbationType } from "@/lib/types";
 
 const TYPES: { value: GeneticPerturbationType; label: string }[] = [
@@ -22,21 +23,22 @@ function TargetsView() {
   const router = useRouter();
   const params = useSearchParams();
   const linkedCompound = params.get("compound") ?? "";
-  const [compoundId, setCompoundId] = useState(linkedCompound);
-  const [context, setContext] = useState(DEFAULT_CONTEXT);
-  const [geneticTimepoint, setGeneticTimepoint] = useState("");
-  const [types, setTypes] = useState<GeneticPerturbationType[]>([]);
-  const [absolute, setAbsolute] = useState(true);
-  const [neighborWeight, setNeighborWeight] = useState("2");
-  const [neighbors, setNeighbors] = useState("10");
-  const prioritized = useApiMutation(api.prioritizeTargets);
-  const matched = useApiMutation(api.matchGenes);
+  const [compoundId, setCompoundId] = useSessionState("targets.query", linkedCompound);
+  const [context, setContext] = useSessionState("targets.context", SHORT_CONTEXT);
+  const [geneticTimepoint, setGeneticTimepoint] = useSessionState("targets.geneticTimepoint", "");
+  const [types, setTypes] = useSessionState<GeneticPerturbationType[]>("targets.types", []);
+  const [absolute, setAbsolute] = useSessionState("targets.absolute", true);
+  const [neighborWeight, setNeighborWeight] = useSessionState("targets.neighborWeight", "2");
+  const [neighbors, setNeighbors] = useSessionState("targets.neighbors", "10");
+  const prioritized = useApiMutation(api.prioritizeTargets, "targets.prioritized");
+  const matched = useApiMutation(api.matchGenes, "targets.matched");
 
   const toggleType = (value: GeneticPerturbationType) =>
     setTypes((current) => (current.includes(value) ? current.filter((t) => t !== value) : [...current, value]));
 
   const submit = (id = compoundId) => {
     if (!id) return;
+    setCompoundId(id);
     router.replace(`/targets?compound=${encodeURIComponent(id)}`, { scroll: false });
     const shared = {
       compound_id: id,
@@ -45,7 +47,7 @@ function TargetsView() {
       genetic_timepoint: optionalNumber(geneticTimepoint),
       perturbation_types: types.length ? types : null,
       use_absolute_similarity: absolute,
-      top_k: optionalNumber(context.topK) ?? 10,
+      top_k: optionalNumber(context.topK) ?? 5,
     };
     void prioritized.run({
       ...shared,
@@ -59,6 +61,8 @@ function TargetsView() {
   useEffect(() => {
     if (linkedCompound && !autoRan.current) {
       autoRan.current = true;
+      // Coming back to a result already on screen for this tab should not rerun it.
+      if (readSession<{ query_id: string }>("targets.prioritized")?.query_id === linkedCompound) return;
       submit(linkedCompound);
     }
     // Run once for a compound linked via ?compound=.
@@ -67,7 +71,7 @@ function TargetsView() {
   return (
     <AnalysisPage
       title="Drug-to-gene matching"
-      description="Find genes whose knockout or overexpression changes cells the way a compound does, and rank them as candidate targets."
+      description="Rank genes whose knockout or overexpression changes cells the way a compound does."
       scoreLabel="Priority"
       candidateLabel="Gene"
       submitLabel="Match genes"
@@ -87,7 +91,7 @@ function TargetsView() {
         <>
           <Field
             label="Weight of similar compounds"
-            hint="0 ranks by phenotype alone, which generalises better to novel chemistry (see Evaluation)."
+            hint="0 = phenotype only, best for novel chemistry."
           >
             <TextInput type="number" min={0} step={0.5} value={neighborWeight} onChange={(e) => setNeighborWeight(e.target.value)} />
           </Field>
@@ -95,7 +99,7 @@ function TargetsView() {
             <TextInput type="number" min={1} max={100} value={neighbors} onChange={(e) => setNeighbors(e.target.value)} />
           </Field>
           <ContextFields values={context} onChange={setContext} />
-          <Field label="Genetic timepoint (h)" hint="Genetic screens often use a different timepoint.">
+          <Field label="Genetic timepoint (h)">
             <TextInput
               type="number"
               min={0}
@@ -115,7 +119,7 @@ function TargetsView() {
                 onChange={() => toggleType(type.value)}
               />
             ))}
-            <p className="text-[12px] text-ink-3">None selected uses all types.</p>
+            <p className="text-[12px] text-ink-3">None = all.</p>
           </fieldset>
           <Checkbox
             label="Match by absolute similarity"
@@ -138,7 +142,7 @@ function TargetsView() {
           </p>
           <p>
             The query&apos;s own annotated targets never enter the score; they are only marked so you can see where they
-            rank.
+            rank. A matching gene may act upstream, downstream or in parallel to the true target.
           </p>
         </>
       }

@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 
 import { ComparisonPanel, strengthText } from "@/components/PerturbationPanels";
 import { FeatureChangeList } from "@/components/PhenotypeMaps";
@@ -11,10 +11,12 @@ import {
   EmptyState,
   InfoTip,
   Notice,
+  RowExpander,
   Score,
   Section,
   TABLE,
   TD,
+  TD_EXPANDER,
   TH,
   THEAD,
   TR,
@@ -22,6 +24,7 @@ import {
   selectableRow,
 } from "@/components/ui";
 import { formatCount, formatHours, formatScore, splitLabels } from "@/lib/format";
+import { resultStamp, useResultChoice } from "@/lib/session";
 import type { AnalysisResponse, FeatureContribution, RescueAnnotations } from "@/lib/types";
 
 const FLAG_LABELS: Record<string, { label: string; hint: string }> = {
@@ -136,8 +139,11 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
   const query = response.query_annotations as Record<string, string | number | null>;
   const signatureTop = (response.details.signature_top_features ?? []) as FeatureContribution[];
   const excluded = (response.details.excluded ?? {}) as Record<string, number>;
-  const [selected, setSelected] = useState<string | null>(response.predictions[0]?.candidate_id ?? null);
-  useEffect(() => setSelected(response.predictions[0]?.candidate_id ?? null), [response]);
+  const [selected, setSelected] = useResultChoice<string | null>(
+    "rescue.selected",
+    resultStamp(response),
+    response.predictions[0]?.candidate_id ?? null,
+  );
 
   const top = response.predictions[0];
   const topInfo = top?.candidate_annotations as unknown as RescueAnnotations | undefined;
@@ -174,7 +180,7 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
         />
         {signatureTop.length > 0 && (
           <div>
-            <p className="mb-1 text-[12px] text-ink-3">Largest changes vs. matched controls (MAD units)</p>
+            <p className="mb-1 text-[12px] text-ink-3">Largest changes vs. controls</p>
             <FeatureChangeList
               unit="MAD"
               features={signatureTop.slice(0, 5).map((f) => ({ feature: f.feature, label: f.label, value: f.value }))}
@@ -192,27 +198,21 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
           <Findings
             items={[
               <>
-                Strongest reversal is <Em>{top.candidate_name ?? top.candidate_id}</Em> with score{" "}
-                <Em>{formatScore(top.score, 2)}</Em>; its own response is stronger than{" "}
-{strengthText(topInfo.response_percentile).replace("> ", "")} of control pseudo-replicates
-                {topInfo.stress_flags.length ? ", but it carries a stress flag." : " and it carries no stress flags."}
+                Strongest reversal: <Em>{top.candidate_name ?? top.candidate_id}</Em>, score{" "}
+                <Em>{formatScore(top.score, 2)}</Em>
+                {topInfo.stress_flags.length ? ", with a stress flag." : ", no stress flags."}
               </>,
               <>
-                {flagged.length} of the top {response.predictions.length} candidates are flagged for cell loss or a generic
-                response
-                {excluded.stress_like ? `; ${excluded.stress_like} stress-like compounds were excluded.` : "."}
-              </>,
-              <>
-                These are computational candidates. An opposing profile can come from an unrelated mechanism and must be
-                confirmed experimentally.
+                <Em>
+                  {flagged.length} of {response.predictions.length}
+                </Em>{" "}
+                flagged for cell loss or a generic response
+                {excluded.stress_like ? `; ${excluded.stress_like} stress-like excluded.` : "."}
               </>,
             ]}
           />
 
-          <Section
-            title="Rescue candidates"
-            description="Select a row to compare cells below. Expand it to see which features drive the score."
-          >
+          <Section title="Rescue candidates" description="Select a row to compare cells.">
             <TableFrame>
               <table className={TABLE}>
                 <thead className={THEAD}>
@@ -269,19 +269,12 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
                           <td className={`${TD} text-[12.5px]`}>
                             <Flags flags={info.stress_flags} />
                           </td>
-                          <td className={TD}>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setExpanded(open ? null : prediction.candidate_id);
-                              }}
-                              aria-expanded={open}
-                              aria-label={`Explain the score for ${prediction.candidate_name ?? prediction.candidate_id}`}
-                              className="rounded p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink"
-                            >
-                              <ChevronRight className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
-                            </button>
+                          <td className={TD_EXPANDER}>
+                            <RowExpander
+                              open={open}
+                              onToggle={() => setExpanded(open ? null : prediction.candidate_id)}
+                              label={`Explain the score for ${prediction.candidate_name ?? prediction.candidate_id}`}
+                            />
                           </td>
                         </tr>
                         {open && (
@@ -296,10 +289,7 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
                                 <GroupBars title="Contribution by measurement" values={info.by_measurement} />
                                 <GroupBars title="Contribution by stain" values={info.by_channel} />
                               </div>
-                              <p className="text-[12px] text-ink-3">
-                                Feature contributions sum exactly to the reversal score. Arrows show each feature&apos;s
-                                direction in the gene perturbation and in the compound.
-                              </p>
+                              <p className="text-[12px] text-ink-3">Contributions sum to the reversal score.</p>
                             </td>
                           </tr>
                         )}

@@ -1,8 +1,7 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 
 import { ApiErrorNotice } from "@/components/ApiErrorNotice";
 import { ComparisonPanel } from "@/components/PerturbationPanels";
@@ -11,10 +10,12 @@ import {
   EmptyState,
   InfoTip,
   Notice,
+  RowExpander,
   Score,
   Section,
   TABLE,
   TD,
+  TD_EXPANDER,
   TH,
   THEAD,
   TR,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui";
 import type { ApiError } from "@/lib/api";
 import { formatHours, formatScore, formatSigned, splitLabels, topPercent } from "@/lib/format";
+import { resultStamp, useResultChoice } from "@/lib/session";
 import type { AnalysisResponse, CompoundRef, MatchAnnotations, TargetAnnotations } from "@/lib/types";
 
 type Tab = "prioritized" | "matches";
@@ -34,7 +36,10 @@ const typeLabel = (value: string | null | undefined) => (value ? (TYPE_LABEL[val
 function CompoundList({ title, items, empty }: { title: string; items: CompoundRef[]; empty: string }) {
   return (
     <div className="min-w-0">
-      <p className="mb-1.5 text-[12px] font-medium text-ink-2">{title}</p>
+      <p className="mb-1.5 flex justify-between gap-3 text-[12px] font-medium text-ink-2">
+        {title}
+        {items.length > 0 && <span className="font-normal text-ink-3">cosine</span>}
+      </p>
       {items.length === 0 ? (
         <p className="text-[12.5px] text-ink-3">{empty}</p>
       ) : (
@@ -135,19 +140,12 @@ function PrioritizedTable({
                       </>
                     )}
                   </td>
-                  <td className={TD}>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setExpanded(open ? null : prediction.candidate_id);
-                      }}
-                      aria-expanded={open}
-                      aria-label={`Evidence for ${prediction.candidate_id}`}
-                      className="rounded p-0.5 text-ink-3 hover:bg-surface-3 hover:text-ink"
-                    >
-                      <ChevronRight className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
-                    </button>
+                  <td className={TD_EXPANDER}>
+                    <RowExpander
+                      open={open}
+                      onToggle={() => setExpanded(open ? null : prediction.candidate_id)}
+                      label={`Evidence for ${prediction.candidate_id}`}
+                    />
                   </td>
                 </tr>
                 {open && (
@@ -182,7 +180,6 @@ function PrioritizedTable({
                           empty="No imported compound lists this gene as a target."
                         />
                       </div>
-                      <p className="mt-3 text-[12px] text-ink-3">Compound similarities are cosines to the query.</p>
                     </td>
                   </tr>
                 )}
@@ -265,7 +262,8 @@ export function TargetResults({
   matches: AnalysisResponse | null;
   matchesError: ApiError | null;
 }) {
-  const [tab, setTab] = useState<Tab>("prioritized");
+  const stamp = resultStamp(prioritized);
+  const [tab, setTab] = useResultChoice<Tab>("targets.tab", stamp, "prioritized");
   const knownTargets = splitLabels(prioritized.query_annotations.known_target);
   const ranked = (prioritized.details.query_targets_in_ranking ?? []) as { gene: string; rank: number }[];
   const nGenes = Number(prioritized.details.n_genes ?? 0);
@@ -273,8 +271,7 @@ export function TargetResults({
   const firstReagent = () =>
     (prioritized.predictions[0]?.candidate_annotations as unknown as TargetAnnotations | undefined)?.reagents[0]
       ?.perturbation_id ?? null;
-  const [selected, setSelected] = useState<string | null>(firstReagent);
-  useEffect(() => setSelected(firstReagent()), [prioritized]);
+  const [selected, setSelected] = useResultChoice<string | null>("targets.selected", stamp, firstReagent());
 
   const top = prioritized.predictions[0];
   const topInfo = top?.candidate_annotations as unknown as TargetAnnotations | undefined;
@@ -297,7 +294,8 @@ export function TargetResults({
         href={`/compounds/${encodeURIComponent(prioritized.query_id)}`}
         facts={[
           {
-            label: "Annotated targets (not used in scoring)",
+            label: "Annotated targets",
+            note: "Never used in scoring; shown only to check where they rank.",
             value: knownTargets.length ? knownTargets.slice(0, 6).join(", ") : <span className="text-ink-3">None</span>,
           },
           { label: "Genes scored", value: <span className="tabular">{nGenes}</span> },
@@ -311,13 +309,12 @@ export function TargetResults({
         <Findings
           items={[
             <>
-              Top candidate is <Em>{top.candidate_id}</Em> with priority <Em>{formatScore(top.score, 2)}</Em>: its best{" "}
-              {typeLabel(topInfo.reagents[0]?.perturbation_type)} reagent matches the compound with cosine{" "}
-              {formatSigned(topInfo.reagents[0]?.cosine, 2)} ({topPercent(topInfo.phenotypic_score * 100).toLowerCase()} of
-              compound-reagent pairs).
+              Top candidate: <Em>{top.candidate_id}</Em>, priority <Em>{formatScore(top.score, 2)}</Em> (
+              {typeLabel(topInfo.reagents[0]?.perturbation_type)} cosine {formatSigned(topInfo.reagents[0]?.cosine, 2)},{" "}
+              {topPercent(topInfo.phenotypic_score * 100).toLowerCase()}).
             </>,
             knownTargets.length === 0 ? (
-              <>The compound has no annotated targets to check the ranking against.</>
+              <>No annotated targets to check against.</>
             ) : ranked.length ? (
               <>
                 Annotated target{ranked.length > 1 ? "s" : ""}{" "}
@@ -330,24 +327,20 @@ export function TargetResults({
                 of {nGenes} genes.
               </>
             ) : (
-              <>None of the annotated targets ({knownTargets.slice(0, 3).join(", ")}) has a genetic reagent in this dataset.</>
+              <>No annotated target ({knownTargets.slice(0, 3).join(", ")}) has a genetic reagent here.</>
             ),
             weight > 0 ? (
               <>
-                Ranking blends phenotype with targets of similar compounds (weight {weight}). For novel chemistry, set the
-                weight to 0 in Parameters.
+                Includes similar-compound evidence (weight {weight}). Set 0 in Parameters for novel chemistry.
               </>
             ) : (
-              <>Ranking uses the phenotype match alone.</>
+              <>Phenotype match only.</>
             ),
           ]}
         />
       )}
 
-      <Section
-        title="Candidate genes"
-        description="Select a row to compare cells below. A matching gene may act upstream, downstream or in parallel to the true target."
-      >
+      <Section title="Candidate genes" description="Select a row to compare cells.">
         <div className="space-y-4">
           <Tabs
             value={tab}

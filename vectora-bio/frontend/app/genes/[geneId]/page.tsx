@@ -39,7 +39,7 @@ export default function GeneDetailPage() {
         <div className="space-y-10">
           <Section
             title={`Genetic reagents (${data.perturbations.length})`}
-            description="Select a reagent to view its cells and phenotype below."
+            description="Select a reagent to view its cells."
           >
             <DataTable
               rows={data.perturbations}

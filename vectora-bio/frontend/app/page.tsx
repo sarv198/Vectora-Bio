@@ -13,31 +13,31 @@ const TOOLS = [
   {
     href: "/similarity",
     title: "Compound similarity",
-    question: "Which compounds change cells the same way as this one?",
+    question: "Compounds that change cells the same way",
     needs: ["compound_profiles"],
   },
   {
     href: "/targets",
     title: "Drug-to-gene matching",
-    question: "Which gene knockout or overexpression looks like this compound?",
+    question: "Genes whose perturbation looks like a compound",
     needs: ["compound_profiles", "genetic_profiles"],
   },
   {
     href: "/moa",
     title: "Mechanism of action",
-    question: "What mechanism do the most similar annotated compounds suggest?",
+    question: "Mechanism suggested by similar compounds",
     needs: ["compound_profiles"],
   },
   {
     href: "/rescue",
     title: "Phenotypic rescue",
-    question: "Which compounds push cells back from a genetic perturbation's phenotype?",
+    question: "Compounds that reverse a genetic phenotype",
     needs: ["compound_profiles", "genetic_profiles", "control_profiles"],
   },
   {
     href: "/evaluation",
     title: "Evaluation",
-    question: "How well do these methods work on compounds they have not seen?",
+    question: "Accuracy on held-out compounds",
     needs: [],
   },
 ];
@@ -53,7 +53,7 @@ export default function OverviewPage() {
     <>
       <PageHeader
         title="Overview"
-        description="Cell Painting profiles from chemical and genetic perturbation screens, and the analyses they support."
+        description="Cell Painting profiles from chemical and genetic screens."
       />
 
       {error ? (
@@ -64,13 +64,19 @@ export default function OverviewPage() {
         <div className="space-y-10">
           <Metrics
             items={[
-              { label: "Compounds", value: formatCount(dataset("compound_profiles")?.n_rows), detail: "consensus profiles" },
-              { label: "Genetic reagents", value: formatCount(dataset("genetic_profiles")?.n_rows), detail: "CRISPR guides and ORFs" },
-              { label: "Control profiles", value: formatCount(dataset("control_profiles")?.n_rows), detail: "negative controls" },
-              { label: "Features", value: formatCount(dataset("compound_profiles")?.n_features), detail: "per profile" },
+              { label: "Compounds", value: formatCount(dataset("compound_profiles")?.n_rows) },
+              { label: "Genetic reagents", value: formatCount(dataset("genetic_profiles")?.n_rows) },
+              { label: "Control profiles", value: formatCount(dataset("control_profiles")?.n_rows) },
+              { label: "Features", value: formatCount(dataset("compound_profiles")?.n_features) },
               {
                 label: "Imaged plates",
-                value: plates.data ? String(plates.data.length) : "n/a",
+                value: plates.data ? (
+                  <Link href="/plates" className="hover:text-accent hover:underline">
+                    {plates.data.length}
+                  </Link>
+                ) : (
+                  "n/a"
+                ),
                 detail: plates.data ? `${formatCount(plates.data.reduce((s, p) => s + p.n_wells, 0))} wells` : "well files missing",
               },
             ]}
@@ -107,7 +113,7 @@ export default function OverviewPage() {
                         <td className={`${TD} py-3 text-ink-2`}>{question}</td>
                         <td className={`${TD} w-40 py-3 text-right`}>
                           {needs.length === 0 ? (
-                            <Status tone="neutral">Uses the database</Status>
+                            <Status tone="ok">Ready</Status>
                           ) : missing.length === 0 ? (
                             <Status tone="ok">Ready</Status>
                           ) : (
@@ -129,31 +135,7 @@ export default function OverviewPage() {
             </TableFrame>
           </Section>
 
-          <div className="grid gap-10 lg:grid-cols-2">
-            <Section title="Data">
-              <dl className="divide-y divide-line border-y border-line text-[13.5px]">
-                {data.datasets.map((d) => (
-                  <div key={d.name} className="flex items-center justify-between gap-4 py-2">
-                    <dt className="text-ink-2">{humanize(d.profile_type)} profiles</dt>
-                    <dd className="tabular text-ink">
-                      {d.available ? (
-                        `${formatCount(d.n_rows)} x ${formatCount(d.n_features)}`
-                      ) : (
-                        <Status tone="warn">Not imported</Status>
-                      )}
-                    </dd>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between gap-4 py-2">
-                  <dt className="text-ink-2">Cell images</dt>
-                  <dd>
-                    <Link href="/plates" className="text-accent hover:underline">
-                      Browse plates
-                    </Link>
-                  </dd>
-                </div>
-              </dl>
-            </Section>
+          <div className="max-w-2xl">
             <Section title="Service">
               <dl className="divide-y divide-line border-y border-line text-[13.5px]">
                 <div className="flex items-center justify-between gap-4 py-2">

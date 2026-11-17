@@ -96,7 +96,7 @@ function Grid<T extends { compartment: string; channel: string }>({
         </tbody>
       </table>
       <p className="mt-1.5 min-h-[2.6em] text-[12px] leading-snug text-ink-2" aria-live="polite">
-        {hovered ? describe(hovered) : <span className="text-ink-3">Hover a cell to see its strongest feature.</span>}
+        {hovered ? describe(hovered) : <span className="text-ink-3">Hover a cell for details.</span>}
       </p>
     </div>
   );

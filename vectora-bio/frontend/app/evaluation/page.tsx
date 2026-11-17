@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { ApiErrorNotice } from "@/components/ApiErrorNotice";
 import { BenchmarkChart, type BenchmarkSeries } from "@/components/BenchmarkChart";
@@ -30,6 +30,7 @@ import {
 import { api } from "@/lib/api";
 import { formatCount, optionalNumber } from "@/lib/format";
 import { useApiMutation, useApiQuery } from "@/lib/hooks";
+import { useSessionState } from "@/lib/session";
 import type { EvaluationRecord, FoldAudit, SplitStrategy } from "@/lib/types";
 
 const STRATEGIES: { value: SplitStrategy; label: string; hint: string }[] = [
@@ -181,8 +182,11 @@ function TaskSection({ task, records }: { task: (typeof TASKS)[number]; records:
               </tbody>
             </table>
           </TableFrame>
-          <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
-            Method: {method}. Baseline: {baseline}. ± is the standard deviation across folds.
+          <p className="mt-2 flex items-center gap-1 text-[12px] text-ink-3">
+            ± = standard deviation across folds
+            <InfoTip>
+              Method: {method}. Baseline: {baseline}.
+            </InfoTip>
           </p>
         </div>
       </div>
@@ -204,8 +208,8 @@ function headline(task: (typeof TASKS)[number], records: EvaluationRecord[]) {
   return (
     <>
       {task.title}: <Em>{pct(value)}</Em> {metricLabel(row.metric)}
-      {methods.length > 1 ? ` (${MODELS[bestKey].label.toLowerCase()})` : ""} against {pct(base)} for the baseline
-      {base ? `, ${(value! / base).toFixed(1)}x higher` : ""}.
+      {methods.length > 1 ? ` (${MODELS[bestKey].label.toLowerCase()})` : ""} vs {pct(base)} baseline
+      {base ? ` (${(value! / base).toFixed(1)}x)` : ""}.
     </>
   );
 }
@@ -246,11 +250,11 @@ function Audit({ audit, strategy }: { audit: FoldAudit | undefined; strategy: Sp
 export default function EvaluationPage() {
   const { data, error, loading, reload } = useApiQuery(() => api.listEvaluations(), []);
   const runner = useApiMutation(api.runEvaluation);
-  const [strategies, setStrategies] = useState<SplitStrategy[]>(["random", "target_group"]);
-  const [folds, setFolds] = useState("5");
-  const [seed, setSeed] = useState("0");
-  const [selectedRun, setSelectedRun] = useState<string | null>(null);
-  const [strategy, setStrategy] = useState<SplitStrategy>("random");
+  const [strategies, setStrategies] = useSessionState<SplitStrategy[]>("evaluation.strategies", ["random", "target_group"]);
+  const [folds, setFolds] = useSessionState("evaluation.folds", "5");
+  const [seed, setSeed] = useSessionState("evaluation.seed", "0");
+  const [selectedRun, setSelectedRun] = useSessionState<string | null>("evaluation.run", null);
+  const [strategy, setStrategy] = useSessionState<SplitStrategy>("evaluation.strategy", "random");
 
   const runs = useMemo(() => {
     const byRun = new Map<string, EvaluationRecord[]>();
@@ -284,7 +288,7 @@ export default function EvaluationPage() {
       <PageHeader
         context="Analysis"
         title="Evaluation"
-        description="Every method is tested on compounds removed from the reference set, scored against their hidden annotations, and compared with a baseline."
+        description="Each method is tested on held-out compounds and compared with a baseline."
       />
 
       <Panel>
@@ -312,7 +316,7 @@ export default function EvaluationPage() {
             <TextInput type="number" value={seed} onChange={(e) => setSeed(e.target.value)} />
           </Field>
           <div className="flex items-center gap-3 sm:ml-auto">
-            <span className="text-[12px] text-ink-3">About 15 seconds; results are saved.</span>
+            <span className="text-[12px] text-ink-3">About 15 s</span>
             <Button onClick={run} loading={runner.loading} disabled={strategies.length === 0}>
               Run benchmarks
             </Button>
@@ -355,10 +359,7 @@ export default function EvaluationPage() {
             </div>
 
             {activeStrategy === "target_group" && (
-              <Notice>
-                JUMP-Target pairs two compounds per target. Holding both out shows how the methods do on targets the
-                reference set has never seen, the harder and more realistic case for a new compound.
-              </Notice>
+              <Notice>Compounds sharing a target are held out together: the realistic case for a new compound.</Notice>
             )}
 
             <Findings

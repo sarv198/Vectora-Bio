@@ -32,14 +32,14 @@ Cell images are fetched from the public Cell Painting Gallery the first time a w
 
 | Check | Expected |
 | --- | --- |
-| Top hits | #1 ganetespib (cosine about 0.97) and #2 NVP-HSP990 (about 0.96). Both are HSP inhibitors, so their mechanism is shown in teal with a check mark. |
-| Key findings | "Nearest compound is ganetespib with cosine 0.97, in the top 0.1% of all compound pairs" and "2 of 10 neighbours share an annotated mechanism with the query (HSP inhibitor)". |
-| Visual comparison | Query and hit #1 shown side by side with the same channels and field. Their phenotype maps look alike, and the agreement map is mostly blue (same direction). |
+| Top hits | The table lists the top 5 by default (raise **Results to show** in Parameters for more). #1 ganetespib (cosine about 0.97) and #2 NVP-HSP990 (about 0.96). Both are HSP inhibitors, so their mechanism is shown in teal with a check mark. |
+| Key findings | "Nearest: ganetespib, cosine 0.97 (top 0.1% of compound pairs)" and "2 of 5 share the query's mechanism (HSP inhibitor)". |
+| Visual comparison | A large **Cosine similarity 0.97** readout on a -1 to 1 scale sits above the images. Query and hit #1 are shown side by side with the same channels and field. Each phenotype map has its **Largest changes vs. control** list underneath, and the agreement map is mostly teal (same direction). |
 | Select hit #4 (azeliragon, an unrelated MoA) by clicking its row. | The comparison panel switches to azeliragon, with a lower overall cosine (about 0.87). Similar-looking cells do not always mean the same mechanism. |
 
 **Test 1b: filters.** Open **Parameters**, tick **Only compounds with a known MoA** and set **Min. replicate agreement** to `0.5`. Rerun. Every hit now has a MoA label and a replicate value of 0.5 or more.
 
-**Test 1c: microtubule drugs.** Query `epothilone-b`. Expected: 3 of the top 10 share a tubulin-related MoA.
+**Test 1c: microtubule drugs.** Query `epothilone-b` with **Results to show** set to 10. Expected: 3 of the top 10 share a tubulin-related MoA.
 
 ---
 
@@ -49,10 +49,10 @@ Cell images are fetched from the public Cell Painting Gallery the first time a w
 
 | Check | Expected |
 | --- | --- |
-| Key findings | "Annotated target AURKB ranks #1 of 160 genes". The annotated targets are listed above the findings but never used in the score. |
-| Candidate genes table | Row #1 is AURKB, labelled "Annotated target of query", priority about 0.49. |
-| Comparison below the table | AMG900 wells beside the AURKB CRISPR knockout. Tick **Show same-plate controls** to add each one's negative control. AMG900 cells typically look much larger, with enlarged and irregular nuclei: Aurora B inhibition blocks cell division. The top feature changes are DNA granularity and intensity in the nucleus, at z-scores above 40. |
-| Click the arrow at the end of the AURKB row | It lists the genetic reagents with cosine and percentile, the similar compounds also annotated to AURKB, and the priority formula. |
+| Key findings | "Annotated target AURKB ranks #1 of 160 genes". The annotated targets are listed above the findings (hover the (i) next to the label: never used in scoring). |
+| Candidate genes table | Top 5 genes by default. Row #1 is AURKB, labelled "Annotated target of query", priority about 0.49. |
+| Comparison below the table | AMG900 wells beside the AURKB CRISPR knockout. Tick **Show same-plate controls** to add each one's negative control. AMG900 cells typically look much larger, with enlarged and irregular nuclei: Aurora B inhibition blocks cell division. Under each phenotype map, **Largest changes vs. control** lists that perturbation's top five features: for AMG900, nuclear DNA features with very large z-scores. |
+| Click the bordered arrow button at the end of the AURKB row (anywhere close to it works) | It lists the genetic reagents with cosine and percentile, and the compounds annotated to AURKB with their cosine to the query. |
 | **Reagent matches** tab | The raw reagent ranking by cosine. Selecting a row updates the comparison panel to that reagent. |
 
 **Test 2b: phenotype-only ranking.** Open **Parameters**, set **Weight of similar compounds** to `0` and rerun AMG900. AURKB should still be #1, now from the phenotype match alone. This is the setting to use for novel chemistry (see the evaluation results).
@@ -67,10 +67,10 @@ Cell images are fetched from the public Cell Painting Gallery the first time a w
 
 | Check | Expected |
 | --- | --- |
-| Top mechanism | `HSP inhibitor`, labelled "Matches the hidden annotation". The query's own label is hidden from inference and shown only for comparison. |
-| Key findings | Vote share about 22%, from 2 annotated neighbours; the top call recovers the hidden mechanism for about 6% of 291 annotated compounds. |
+| Top mechanism | `HSP inhibitor`, labelled "Matches the hidden annotation". The query's own label is hidden from inference and shown only for comparison (see the (i) next to "Annotated mechanism"). |
+| Key findings | "Most likely: HSP inhibitor, confidence 15% (22% of the vote, 2 of 10 annotated neighbours)" and "Top calls are right for 6% of 291 annotated compounds: treat them as leads." |
 | Confidence | About 15%. Low confidence is expected and honest: it is the measured hit rate of calls with this vote share when known compounds were hidden, and many labels in this dataset belong to a single compound. |
-| Expand the mechanism row | It lists the supporting compounds (ganetespib, NVP-HSP990) with their cosines. |
+| Click the mechanism row or its arrow button | It lists the supporting compounds (ganetespib, NVP-HSP990) with their cosines. |
 | Nearest compounds table | Selecting a neighbour shows query and neighbour images and maps side by side, so you can see the evidence behind the vote. |
 
 **Test 3b: other correct calls.** `danusertib` (Aurora kinase inhibitor), `PP-1` and `WH-4-023` (SRC inhibitor), `RGB-286638` (CDK inhibitor).
@@ -89,10 +89,12 @@ Cell images are fetched from the public Cell Painting Gallery the first time a w
 | Compounds ranked | "202 (104 weak excluded)", out of 306 compounds. |
 | Top candidates | #1 CC-401 with a reversal score of about 0.44, #2 GSK2110183 about 0.42, #3 dexamethasone about 0.35. |
 | Flags | `desonide` (#4) carries a **Cell loss** flag. Hover it for the explanation. |
-| Comparison below the table | CDK2 knockout and its control on the left, CC-401 and its DMSO control on the right. The heading reads "Reversal score 0.44", matching the table. The agreement map is mostly terracotta: those cells are where the compound moves features opposite to the knockout. |
-| Click the arrow at the end of row #1 | It shows the features driving the reversal and those working against it, plus bars by measurement and by stain. The note says the contributions sum exactly to the score. |
+| Comparison below the table | A large **Reversal score 0.44** readout (matching the table) sits on a scale from -1 Mimics to 1 Reverses, above the images. CDK2 knockout and its control on the left, CC-401 and its DMSO control on the right. The agreement map is mostly terracotta: those cells are where the compound moves features opposite to the knockout. |
+| Click the arrow button at the end of row #1 | It shows the features driving the reversal and those working against it, plus bars by measurement and by stain. The note says the contributions sum to the score. |
 
 **Test 4b: filters.** Open **Parameters** and untick **Exclude weak responses** and rerun. Now all 306 compounds are ranked, and weak compounds can enter the top 10 (e.g. TUG-891 at about 0.37). Then tick **Exclude cell-loss and stress-like compounds**: flagged compounds disappear, and the findings state how many were excluded.
+
+The disclaimer that rescue candidates must be confirmed experimentally is under **How it works**.
 
 ---
 
@@ -121,6 +123,18 @@ Every method bar should sit clearly above its gray baseline bar.
 - Every comparison panel shows *where* two profiles agree or oppose, by compartment and stain, next to the cell images.
 
 **Test 5e: history.** Reload the page. The run you just made appears under previous runs and can be reopened.
+
+---
+
+## 6. Work is kept while you move around
+
+| Step | Expected |
+| --- | --- |
+| Run a similarity search, select row #4, then open **Genes** and come back to **Compound similarity** from the sidebar. | The query box, parameters, results and the selected row are all as you left them. |
+| Do the same on Drug-to-gene matching (switch to the **Reagent matches** tab first), Mechanism of action and Phenotypic rescue. | Each page keeps its own query, results, selected row and tab. |
+| Start a rescue search and switch pages before it finishes, then come back. | The page shows it is still running, then the results appear. |
+| Reload the browser tab. | Everything is still there. Closing the tab clears it. |
+| On **Plates**, pick a plate and well, leave, and come back from the sidebar. | The same plate and well are shown. |
 
 ---
 
