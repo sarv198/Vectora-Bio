@@ -5,7 +5,7 @@ from sqlalchemy.engine import make_url
 
 from app.api.deps import DbSession, SettingsDep, StoreDep
 from app.errors import DatabaseUnavailableError
-from app.schemas.health import DatabaseStatus, HealthResponse
+from app.schemas.health import DatabaseStatus, FeatureFlags, HealthResponse
 from app.services import metadata_service
 
 router = APIRouter()
@@ -29,4 +29,5 @@ def health(db: DbSession, settings: SettingsDep, store: StoreDep) -> HealthRespo
         environment=settings.environment,
         database=database,
         datasets=store.status(),
+        features=FeatureFlags(evaluation_runs=settings.evaluation_runs_enabled),
     )

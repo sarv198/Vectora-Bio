@@ -50,6 +50,13 @@ class ImagesUnavailableError(VectoraError):
     error_code = "images_unavailable"
 
 
+class FeatureDisabledError(VectoraError):
+    """The server is configured not to offer this operation (e.g. on a public deployment)."""
+
+    status_code = 403
+    error_code = "feature_disabled"
+
+
 class NotFoundError(VectoraError):
     status_code = 404
     error_code = "not_found"

@@ -139,8 +139,23 @@ def similarity_background(profiles: pd.DataFrame, max_pairs: int = 200_000, seed
         rng = np.random.default_rng(seed)
         rows = rng.integers(0, n, size=max_pairs)
         cols = (rows + rng.integers(1, n, size=max_pairs)) % n  # never equal to rows
-    values = np.einsum("ij,ij->i", unit[rows], unit[cols])
+    values = _paired_dots(unit, unit, rows, cols)
     return np.sort(np.clip(values, -1.0, 1.0))
+
+
+def _paired_dots(
+    a: NDArray[np.float64], b: NDArray[np.float64], i: NDArray[np.intp], j: NDArray[np.intp], chunk: int = 4096
+) -> NDArray[np.float64]:
+    """``a[i[k]] . b[j[k]]`` for every k, gathered in chunks.
+
+    Gathering all pairs at once copies len(i) x n_features floats per side (hundreds of MB
+    for a few hundred compounds); chunking bounds that while giving identical values.
+    """
+    out = np.empty(len(i), dtype=np.float64)
+    for start in range(0, len(i), chunk):
+        part = slice(start, start + chunk)
+        out[part] = np.einsum("ij,ij->i", a[i[part]], b[j[part]])
+    return out
 
 
 def cross_similarity_background(
@@ -167,7 +182,7 @@ def cross_similarity_background(
         rng = np.random.default_rng(seed)
         i = rng.integers(0, a.shape[0], size=max_pairs)
         j = rng.integers(0, b.shape[0], size=max_pairs)
-        values = np.einsum("ij,ij->i", a[i], b[j])
+        values = _paired_dots(a, b, i, j)
     values = np.clip(values, -1.0, 1.0)
     return np.sort(np.abs(values) if absolute else values)
 

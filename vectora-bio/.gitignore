@@ -32,3 +32,7 @@ data/processed/*
 *.parquet
 *.csv.gz
 *.tsv.gz
+
+# Deployment staging (built by scripts/stage_api.py) and database dumps
+deploy/api/build/
+*.dump

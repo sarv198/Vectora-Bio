@@ -21,6 +21,7 @@ def test_health_without_data(client):
     assert body["database"]["status"] == "ok"
     assert body["database"]["compound_count"] == 0
     assert [d["available"] for d in body["datasets"]] == [False, False, False]
+    assert body["features"]["evaluation_runs"] is True
 
 
 @pytest.mark.parametrize("path", ["/api/compounds", "/api/compounds/CMPD_A1", "/api/genes", "/api/genes/1001"])
@@ -326,3 +327,18 @@ def test_evaluation_run_and_listing(client, loaded_data):
     assert len(listing["results"]) == len(body["results"])
     assert listing["message"] is None
     assert client.post("/api/evaluation/run", json={"n_folds": 50}).status_code == 422
+
+
+def test_evaluation_runs_can_be_disabled(settings, monkeypatch):
+    from app.config import get_settings
+    from app.main import create_app
+
+    monkeypatch.setenv("EVALUATION_RUNS_ENABLED", "false")
+    get_settings.cache_clear()
+    with TestClient(create_app()) as client:
+        assert client.get("/api/health").json()["features"]["evaluation_runs"] is False
+        response = client.post("/api/evaluation/run", json={"n_folds": 2})
+        assert response.status_code == 403
+        assert response.json()["error"] == "feature_disabled"
+        # Stored results stay readable.
+        assert client.get("/api/evaluation").status_code == 200

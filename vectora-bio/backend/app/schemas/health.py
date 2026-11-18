@@ -15,6 +15,10 @@ class DatabaseStatus(BaseModel):
     genetic_perturbation_count: int | None = None
 
 
+class FeatureFlags(BaseModel):
+    evaluation_runs: bool = True
+
+
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     app_name: str
@@ -22,3 +26,4 @@ class HealthResponse(BaseModel):
     environment: str
     database: DatabaseStatus
     datasets: list[DatasetStatus]
+    features: FeatureFlags = FeatureFlags()

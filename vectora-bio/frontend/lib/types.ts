@@ -303,6 +303,7 @@ export interface HealthResponse {
     genetic_perturbation_count: number | null;
   };
   datasets: DatasetStatus[];
+  features?: { evaluation_runs: boolean };
 }
 
 export interface ApiErrorBody {

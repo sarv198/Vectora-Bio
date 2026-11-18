@@ -250,6 +250,9 @@ function Audit({ audit, strategy }: { audit: FoldAudit | undefined; strategy: Sp
 export default function EvaluationPage() {
   const { data, error, loading, reload } = useApiQuery(() => api.listEvaluations(), []);
   const runner = useApiMutation(api.runEvaluation);
+  // A public deployment can switch benchmark runs off; stored results stay viewable.
+  const health = useApiQuery(() => api.health(), []);
+  const runsEnabled = health.data?.features?.evaluation_runs !== false;
   const [strategies, setStrategies] = useSessionState<SplitStrategy[]>("evaluation.strategies", ["random", "target_group"]);
   const [folds, setFolds] = useSessionState("evaluation.folds", "5");
   const [seed, setSeed] = useSessionState("evaluation.seed", "0");
@@ -291,6 +294,9 @@ export default function EvaluationPage() {
         description="Each method is tested on held-out compounds and compared with a baseline."
       />
 
+      {!runsEnabled ? (
+        <Notice>Showing saved benchmark results. New runs are disabled on this server.</Notice>
+      ) : (
       <Panel>
         <div className="flex flex-wrap items-end gap-x-6 gap-y-4 p-4">
           <fieldset className="flex flex-wrap gap-x-5 gap-y-2">
@@ -323,6 +329,7 @@ export default function EvaluationPage() {
           </div>
         </div>
       </Panel>
+      )}
 
       <div className="mt-9 space-y-9">
         {runner.error && <ApiErrorNotice error={runner.error} />}

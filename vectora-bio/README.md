@@ -131,6 +131,10 @@ npm run typecheck
 npm test
 ```
 
+## Public deployment
+
+Website on Vercel, API on Render, database on Neon: see [docs/deployment.md](docs/deployment.md).
+
 ## Docker (optional)
 
 `docker compose up` starts Postgres (host port 5433) and the API (port 8000) with `./data` mounted.

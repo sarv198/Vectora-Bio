@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     database_connect_timeout_s: int = Field(default=5, ge=1)
     auto_create_tables: bool = True
     persist_analysis_runs: bool = True
+    # Benchmark runs take ~15 s of CPU and write to the database. Turn off on a public
+    # deployment; stored results stay viewable.
+    evaluation_runs_enabled: bool = True
 
     # Comma-separated list, e.g. "http://localhost:3000,http://127.0.0.1:3000".
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"

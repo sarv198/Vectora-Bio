@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import DbSession, StoreDep
+from app.api.deps import DbSession, SettingsDep, StoreDep
+from app.errors import FeatureDisabledError
 from app.schemas.common import DATA_ERROR_RESPONSES
 from app.schemas.evaluation import EvaluationListResponse, EvaluationRunRequest, EvaluationRunResponse
 from app.services import evaluation_service
@@ -20,5 +21,12 @@ def list_evaluations(
 
 
 @router.post("/run", response_model=EvaluationRunResponse, summary="Run the held-out benchmarks and store the metrics")
-def run_evaluation(body: EvaluationRunRequest, db: DbSession, store: StoreDep) -> EvaluationRunResponse:
+def run_evaluation(
+    body: EvaluationRunRequest, db: DbSession, store: StoreDep, settings: SettingsDep
+) -> EvaluationRunResponse:
+    if not settings.evaluation_runs_enabled:
+        raise FeatureDisabledError(
+            "Benchmark runs are disabled on this server. Stored results remain available.",
+            details={"setting": "EVALUATION_RUNS_ENABLED"},
+        )
     return evaluation_service.run_benchmarks(store, db, body)
