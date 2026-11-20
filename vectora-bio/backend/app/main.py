@@ -3,6 +3,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+import anyio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
@@ -40,6 +41,8 @@ TAGS = [
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     settings = get_settings()
+    # Endpoints are synchronous and run in this thread pool; its size caps concurrent work.
+    anyio.to_thread.current_default_thread_limiter().total_tokens = settings.request_threads
     if settings.auto_create_tables:
         try:
             init_db()

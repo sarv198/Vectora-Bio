@@ -11,11 +11,15 @@ ch1 Mito, ch2 AGP, ch3 RNA, ch4 ER, ch5 DNA, ch8 brightfield; 9 fields of 1080 x
 at 0.598 um/px per well.
 """
 
+import ctypes
 import io
 import json
 import logging
+import os
 import re
+import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -50,12 +54,25 @@ ALLOWED_SIZES = (270, 360, 540, 1080)
 # The website's per-stain ("Channels") tiles. Rendering a composite also keeps a grayscale tile
 # of each stain at this size, so switching to the Channels view needs no new decoding.
 TILE_SIZE = 360
-MAX_TILES = 192  # 360 x 360 uint8 = 130 kB each, about 25 MB in total
 BACKGROUND_PERCENTILE, HIGH_PERCENTILE = 10.0, 99.8
 
 _WELL = re.compile(r"^([A-P])(\d{1,2})$")
 _PLATE = re.compile(r"^[A-Za-z0-9-]{3,40}$")
 _PREFIX = re.compile(r"<Prefix>([^<]+)</Prefix>")
+
+
+def _malloc_trim() -> None:
+    """Hand freed heap memory back to the OS (glibc only).
+
+    Decoding a field allocates and frees tens of MB; without this, glibc keeps the freed pages
+    and a long-running process's memory only ever ratchets up.
+    """
+    if not sys.platform.startswith("linux"):
+        return
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
 
 
 def parse_well(well: str) -> tuple[int, int]:
@@ -175,25 +192,36 @@ class CellImageSource:
         # for many fields at once, so cap how many are processed together (downloads still
         # run in parallel). Keeps a 512 MB host from running out of memory.
         self._render_slots = threading.BoundedSemaphore(settings.cell_image_render_concurrency)
+        self._disk_lock = threading.Lock()
+        self._disk_bytes: int | None = None  # running total of cached TIFFs, scanned on first use
 
     @property
     def enabled(self) -> bool:
         return self._settings.cell_images_enabled
 
     # -- remote access -------------------------------------------------------------------
-    def _fetch(self, url: str) -> bytes:
-        try:
-            with urllib.request.urlopen(url, timeout=self._settings.cell_image_timeout_s) as response:  # noqa: S310
-                return response.read()
-        except urllib.error.HTTPError as exc:
-            if exc.code in (403, 404):
-                raise NotFoundError(f"Image not found in the Cell Painting Gallery ({exc.code}).") from exc
-            raise ImagesUnavailableError(f"Cell Painting Gallery returned HTTP {exc.code}.") from exc
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            raise ImagesUnavailableError(
-                "Could not reach the Cell Painting Gallery to fetch images. Check the internet connection.",
-                details={"reason": str(getattr(exc, "reason", exc))},
-            ) from exc
+    def _fetch(self, url: str, attempts: int = 3) -> bytes:
+        """GET from the public gallery, retrying transient failures (S3 5xx such as "Slow Down",
+        timeouts, dropped connections) with a short backoff. Missing objects fail at once."""
+        for attempt in range(1, attempts + 1):
+            try:
+                with urllib.request.urlopen(url, timeout=self._settings.cell_image_timeout_s) as response:  # noqa: S310
+                    return response.read()
+            except urllib.error.HTTPError as exc:
+                if exc.code in (403, 404):
+                    raise NotFoundError(f"Image not found in the Cell Painting Gallery ({exc.code}).") from exc
+                if attempt == attempts or exc.code < 500:
+                    raise ImagesUnavailableError(f"Cell Painting Gallery returned HTTP {exc.code}.") from exc
+                logger.warning("Gallery returned HTTP %s for %s; retrying", exc.code, url)
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                if attempt == attempts:
+                    raise ImagesUnavailableError(
+                        "Could not reach the Cell Painting Gallery to fetch images. Check the internet connection.",
+                        details={"reason": str(getattr(exc, "reason", exc))},
+                    ) from exc
+                logger.warning("Gallery fetch failed for %s (%s); retrying", url, exc)
+            time.sleep(0.5 * attempt)
+        raise AssertionError("unreachable")
 
     def _folder_cache(self) -> dict[str, str]:
         if self._folders is None:
@@ -230,6 +258,7 @@ class CellImageSource:
         name = image_filename(well, field, channel)
         path = self._root / plate / name
         if path.is_file():
+            self._touch(path)
             return path
         with self._lock:
             file_lock = self._file_locks.setdefault(path, threading.Lock())
@@ -244,12 +273,60 @@ class CellImageSource:
             partial.write_bytes(data)
             partial.replace(path)
             logger.info("Fetched %s (%.1f MB)", url, len(data) / 1e6)
+        self._account(len(data))
         return path
+
+    # -- disk cache ----------------------------------------------------------------------
+    def _touch(self, path: Path) -> None:
+        """Mark a cached file as recently used (its mtime orders eviction)."""
+        if self._settings.cell_image_cache_mb:
+            try:
+                os.utime(path)
+            except OSError:
+                pass
+
+    def _cached_files(self) -> list[tuple[float, int, Path]]:
+        files = []
+        for path in self._root.glob("*/*.tiff"):
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            files.append((stat.st_mtime, stat.st_size, path))
+        return files
+
+    def _account(self, added: int) -> None:
+        """Keep the TIFF cache under CELL_IMAGE_CACHE_MB by removing the least recently used files."""
+        cap = self._settings.cell_image_cache_mb * 2**20
+        if cap <= 0:
+            return
+        with self._disk_lock:
+            if self._disk_bytes is None:
+                self._disk_bytes = sum(size for _, size, _ in self._cached_files())
+            else:
+                self._disk_bytes += added
+            if self._disk_bytes <= cap:
+                return
+            files = sorted(self._cached_files())
+            total = sum(size for _, size, _ in files)
+            for _, size, path in files:
+                if total <= cap * 0.8:  # trim to 80% so this does not run on every download
+                    break
+                try:
+                    path.unlink()
+                    total -= size
+                except OSError:
+                    pass
+            self._disk_bytes = total
 
     def read(self, plate: str, well: str, field: int, channel: str) -> np.ndarray:
         path = self.channel_path(plate, well, field, channel)
         try:
-            with Image.open(path) as image:
+            try:
+                handle = Image.open(path)
+            except FileNotFoundError:  # evicted from the disk cache in the meantime: fetch again
+                handle = Image.open(self.channel_path(plate, well, field, channel))
+            with handle as image:
                 return np.asarray(image, dtype=np.float32)
         except OSError as exc:
             path.unlink(missing_ok=True)  # corrupt download; refetch next time
@@ -331,6 +408,8 @@ class CellImageSource:
                     self._keep_tile((plate, well, field, c, reference), gray_tile(downsample(full, TILE_SIZE)))
                 del full, scaled
             png = encode_png(rgb)
+            del rgb
+        _malloc_trim()
         self._remember(key, png)
         return png
 
@@ -338,14 +417,14 @@ class CellImageSource:
         with self._lock:
             self._rendered[key] = png
             self._rendered.move_to_end(key)
-            while len(self._rendered) > 96:
+            while len(self._rendered) > self._settings.cell_image_render_cache:
                 self._rendered.popitem(last=False)
 
     def _keep_tile(self, key: tuple, tile: np.ndarray) -> None:
         with self._lock:
             self._tiles[key] = tile
             self._tiles.move_to_end(key)
-            while len(self._tiles) > MAX_TILES:
+            while len(self._tiles) > self._settings.cell_image_tile_cache:
                 self._tiles.popitem(last=False)
 
 

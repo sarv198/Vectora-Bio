@@ -139,6 +139,68 @@ def test_channel_tiles_reuse_the_composite(settings, monkeypatch):
         assert tile(source, channel) == png
 
 
+def test_disk_cache_stays_under_its_cap_and_refetches_evicted_files(settings, monkeypatch):
+    """With CELL_IMAGE_CACHE_MB set, old TIFFs are removed and fetched again when needed."""
+    capped = settings.model_copy(
+        update={"cell_image_cache_mb": 6, "cell_image_render_cache": 0, "cell_image_tile_cache": 0}
+    )
+    source = CellImageSource(capped)
+    fetched: list[str] = []
+
+    def fake_fetch(url: str) -> bytes:
+        if "list-type" in url:
+            return b"<ListBucketResult><Prefix>p/PLATE1__2020-Measurement1/</Prefix></ListBucketResult>"
+        fetched.append(url)
+        return _tiff(400)  # 1080 x 1080 uint16, about 2.3 MB
+
+    monkeypatch.setattr(source, "_fetch", fake_fetch)
+    root = capped.raw_dir / "images" / "cpjump1" / "PLATE1"
+    for well in ("A01", "A02", "A03", "A04", "A05"):
+        source.render("PLATE1", well, 5, ["DNA"], size=270)
+        cached = sum(p.stat().st_size for p in root.glob("*.tiff"))
+        assert cached <= 6 * 2**20
+    assert len(fetched) == 5
+    assert not (root / "r01c01f05p01-ch5sk1fk1fl1.tiff").exists()  # A01 was evicted first
+
+    source.render("PLATE1", "A01", 5, ["DNA"], size=270)  # evicted: downloaded again
+    assert len(fetched) == 6
+
+
+def test_gallery_fetch_retries_transient_errors_but_not_missing_files(settings, monkeypatch):
+    import urllib.error
+
+    source = CellImageSource(settings)
+    monkeypatch.setattr(cell_images.time, "sleep", lambda _s: None)
+    calls = {"n": 0}
+
+    class Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def flaky(url, timeout):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise urllib.error.HTTPError(url, 503, "Slow Down", None, None)
+        return Response(b"tiff-bytes")
+
+    monkeypatch.setattr(cell_images.urllib.request, "urlopen", flaky)
+    assert source._fetch("https://example/x.tiff") == b"tiff-bytes"
+    assert calls["n"] == 3
+
+    def missing(url, timeout):
+        calls["n"] += 1
+        raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+
+    calls["n"] = 0
+    monkeypatch.setattr(cell_images.urllib.request, "urlopen", missing)
+    with pytest.raises(NotFoundError):
+        source._fetch("https://example/missing.tiff")
+    assert calls["n"] == 1
+
+
 def test_cell_image_source_validates_and_reports_offline(settings, monkeypatch):
     source = CellImageSource(settings)
     with pytest.raises(InvalidQueryError):

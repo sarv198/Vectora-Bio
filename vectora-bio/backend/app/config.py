@@ -61,6 +61,15 @@ class Settings(BaseSettings):
     cell_image_timeout_s: int = Field(default=60, ge=1)
     # Fields decoded and rendered at once (~15 MB each); others wait. Downloads are not limited.
     cell_image_render_concurrency: int = Field(default=2, ge=1, le=16)
+    # Downloaded microscopy TIFFs kept on disk, in MB; the least recently used are removed past
+    # this. 0 keeps everything (fine locally; a small host's temporary storage is limited).
+    cell_image_cache_mb: int = Field(default=0, ge=0)
+    # Rendered images (~0.4 MB each) and per-stain tiles (~0.13 MB each) kept in memory.
+    cell_image_render_cache: int = Field(default=96, ge=0)
+    cell_image_tile_cache: int = Field(default=192, ge=0)
+    # Threads serving blocking requests at once; further requests wait their turn. Fewer threads
+    # bound peak memory on a small instance, where a slow CPU otherwise lets requests pile up.
+    request_threads: int = Field(default=40, ge=1, le=200)
 
     @property
     def cors_origin_list(self) -> list[str]:

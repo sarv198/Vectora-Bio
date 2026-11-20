@@ -25,13 +25,22 @@ USER user
 #   EVALUATION_RUNS_ENABLED=false hide "Run benchmarks"; stored results stay viewable.
 #   MALLOC_ARENA_MAX=2            stop each worker thread keeping its own pool of freed
 #                                 memory (matters on a 512 MB instance).
+#   CELL_IMAGE_CACHE_MB=256       downloaded microscopy files kept on disk (least recently
+#                                 used removed beyond this); without it they grow ~28 MB a visit.
+#   CELL_IMAGE_RENDER_CACHE / CELL_IMAGE_TILE_CACHE  rendered images kept in memory.
+#   REQUEST_THREADS=8             requests processed at once; the rest queue, so a burst on
+#                                 the slow free CPU cannot pile up memory.
 ENV DATA_PROCESSED_DIR=/app/data/processed \
     DATA_RAW_DIR=/tmp/cellscope-raw \
     ENVIRONMENT=production \
     PERSIST_ANALYSIS_RUNS=false \
     EVALUATION_RUNS_ENABLED=false \
     PYTHONUNBUFFERED=1 \
-    MALLOC_ARENA_MAX=2
+    MALLOC_ARENA_MAX=2 \
+    CELL_IMAGE_CACHE_MB=256 \
+    CELL_IMAGE_RENDER_CACHE=40 \
+    CELL_IMAGE_TILE_CACHE=96 \
+    REQUEST_THREADS=8
 
 WORKDIR /app/backend
 # Render sets PORT (10000 by default).

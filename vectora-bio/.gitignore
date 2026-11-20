@@ -36,3 +36,6 @@ data/processed/*
 # Deployment staging (built by scripts/stage_api.py) and database dumps
 deploy/api/build/
 *.dump
+
+# Demo video renders (large binaries)
+demo/*.mp4
