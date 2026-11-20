@@ -112,6 +112,33 @@ def test_cell_image_source_fetches_once_and_caches(settings, monkeypatch):
     assert calls == []
 
 
+def test_channel_tiles_reuse_the_composite(settings, monkeypatch):
+    """After a composite, the per-stain tiles need no decoding and match a fresh render exactly."""
+
+    def fake_fetch(url: str) -> bytes:
+        if "list-type" in url:
+            return b"<ListBucketResult><Prefix>p/PLATE1__2020-Measurement1/</Prefix></ListBucketResult>"
+        return _tiff(700 if "ch5" in url else 300)
+
+    def tile(src: CellImageSource, channel: str) -> bytes:
+        return src.render("PLATE1", "A01", 5, [channel], size=360, reference_well="B02", grayscale=True)
+
+    fresh = CellImageSource(settings)
+    monkeypatch.setattr(fresh, "_fetch", fake_fetch)
+    expected = {c: tile(fresh, c) for c in ("DNA", "ER")}
+
+    source = CellImageSource(settings)
+    monkeypatch.setattr(source, "_fetch", fake_fetch)
+    source.render("PLATE1", "A01", 5, ["DNA", "ER"], size=540, reference_well="B02")
+
+    def no_decoding(*args, **kwargs):
+        raise AssertionError("tile should come from the composite's cache")
+
+    monkeypatch.setattr(source, "read", no_decoding)
+    for channel, png in expected.items():
+        assert tile(source, channel) == png
+
+
 def test_cell_image_source_validates_and_reports_offline(settings, monkeypatch):
     source = CellImageSource(settings)
     with pytest.raises(InvalidQueryError):

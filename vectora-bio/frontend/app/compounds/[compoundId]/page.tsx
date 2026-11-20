@@ -56,15 +56,15 @@ export default function CompoundDetailPage() {
         <div className="space-y-10">
           <dl className="grid gap-x-10 gap-y-3 border-y border-line py-3.5 text-[13.5px] sm:grid-cols-3">
             <div>
-              <dt className="text-[12px] text-ink-3">Mechanism of action</dt>
+              <dt className="eyebrow">Mechanism of action</dt>
               <dd className="text-ink">{moa.length ? moa.join(", ") : <span className="text-ink-3">Not annotated</span>}</dd>
             </div>
             <div>
-              <dt className="text-[12px] text-ink-3">Known targets</dt>
+              <dt className="eyebrow">Known targets</dt>
               <dd className="text-ink">{targets.length ? targets.join(", ") : <span className="text-ink-3">None annotated</span>}</dd>
             </div>
             <div>
-              <dt className="text-[12px] text-ink-3">Profiled in</dt>
+              <dt className="eyebrow">Profiled in</dt>
               <dd className="text-ink">
                 {data.contexts.length
                   ? data.contexts

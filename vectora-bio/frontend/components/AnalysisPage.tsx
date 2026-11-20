@@ -15,10 +15,11 @@ export interface ContextValues {
   topK: string;
 }
 
-export const DEFAULT_CONTEXT: ContextValues = { cellLine: "", timepoint: "", topK: "10" };
+/** Every analysis lists its top 5 unless more are asked for in Parameters. */
+export const DEFAULT_CONTEXT: ContextValues = { cellLine: "", timepoint: "", topK: "5" };
 
-/** Similarity and drug-to-gene tables list the top 5 unless more are asked for. */
-export const SHORT_CONTEXT: ContextValues = { ...DEFAULT_CONTEXT, topK: "5" };
+/** Kept for the pages that import it; identical to DEFAULT_CONTEXT. */
+export const SHORT_CONTEXT: ContextValues = DEFAULT_CONTEXT;
 
 /** Cell line / timepoint / result count, shared by every analysis's parameters. */
 export function ContextFields({
@@ -102,16 +103,16 @@ export function AnalysisPage({
       <PageHeader context={context} title={title} description={description} />
       <Panel>
         <form onSubmit={handleSubmit}>
-          <div className="flex flex-wrap items-start gap-3 p-4">
+          <div className="flex flex-wrap items-start gap-3 p-5">
             <div className="min-w-[260px] flex-1">{primary}</div>
             {/* Offset by the field label so the button lines up with the input, not its helper text. */}
-            <div className="pt-[25px]">
-              <Button type="submit" loading={loading} className="min-w-[124px]">
+            <div className="pt-6">
+              <Button type="submit" loading={loading} className="min-w-[132px]">
                 {submitLabel}
               </Button>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 border-t border-line px-4 py-2.5">
+          <div className="flex flex-wrap gap-x-7 gap-y-1 border-t border-line px-5 py-1.5">
             {parameters && (
               <DisclosureButton
                 icon={SlidersHorizontal}
@@ -126,15 +127,15 @@ export function AnalysisPage({
             </DisclosureButton>
           </div>
           {showParameters && parameters && (
-            <div className="grid gap-x-5 gap-y-4 border-t border-line p-4 sm:grid-cols-2 lg:grid-cols-4">{parameters}</div>
+            <div className="grid gap-x-6 gap-y-5 border-t border-line p-5 sm:grid-cols-2 lg:grid-cols-4">{parameters}</div>
           )}
           {showMethod && (
-            <div className="max-w-[86ch] space-y-2 border-t border-line p-4 text-[13px] leading-relaxed text-ink-2">{method}</div>
+            <div className="max-w-[86ch] space-y-2 border-t border-line p-5 text-[13.5px] leading-relaxed text-ink-2">{method}</div>
           )}
         </form>
       </Panel>
 
-      <div className="mt-9">
+      <div className="mt-12">
         {error ? (
           <ApiErrorNotice error={error} />
         ) : loading && !response ? (

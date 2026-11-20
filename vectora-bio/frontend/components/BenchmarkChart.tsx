@@ -17,7 +17,7 @@ interface TooltipEntry {
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipEntry[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-md border border-line bg-surface px-3 py-2 text-[12px] shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
+    <div className="border border-line-strong bg-surface px-3 py-2 text-[12px] shadow-pop">
       <p className="mb-1 font-medium text-ink">{label}</p>
       {payload.map((entry) => (
         <p key={entry.name} className="tabular flex items-center gap-2 text-ink-2">

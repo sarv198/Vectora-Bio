@@ -92,7 +92,7 @@ Cell images are fetched from the public Cell Painting Gallery the first time a w
 | Comparison below the table | A large **Reversal score 0.44** readout (matching the table) sits on a scale from -1 Mimics to 1 Reverses, above the images. CDK2 knockout and its control on the left, CC-401 and its DMSO control on the right. The agreement map is mostly terracotta: those cells are where the compound moves features opposite to the knockout. |
 | Click the arrow button at the end of row #1 | It shows the features driving the reversal and those working against it, plus bars by measurement and by stain. The note says the contributions sum to the score. |
 
-**Test 4b: filters.** Open **Parameters** and untick **Exclude weak responses** and rerun. Now all 306 compounds are ranked, and weak compounds can enter the top 10 (e.g. TUG-891 at about 0.37). Then tick **Exclude cell-loss and stress-like compounds**: flagged compounds disappear, and the findings state how many were excluded.
+**Test 4b: filters.** Open **Parameters**, set **Results to show** to 10, untick **Exclude weak responses** and rerun. Now all 306 compounds are ranked, and weak compounds can enter the top 10 (e.g. TUG-891 at about 0.37). Then tick **Exclude cell-loss and stress-like compounds**: flagged compounds disappear, and the findings state how many were excluded.
 
 The disclaimer that rescue candidates must be confirmed experimentally is under **How it works**.
 

@@ -47,6 +47,10 @@ DEFAULT_FIELD = 5
 IMAGE_SIZE_PX = 1080
 PIXEL_SIZE_UM = 0.598
 ALLOWED_SIZES = (270, 360, 540, 1080)
+# The website's per-stain ("Channels") tiles. Rendering a composite also keeps a grayscale tile
+# of each stain at this size, so switching to the Channels view needs no new decoding.
+TILE_SIZE = 360
+MAX_TILES = 192  # 360 x 360 uint8 = 130 kB each, about 25 MB in total
 BACKGROUND_PERCENTILE, HIGH_PERCENTILE = 10.0, 99.8
 
 _WELL = re.compile(r"^([A-P])(\d{1,2})$")
@@ -84,6 +88,62 @@ def display_range(own: tuple[float, float], reference: tuple[float, float]) -> t
     return own[0], own[0] + max(span, 1.0)
 
 
+def scale_full(image: np.ndarray, low: float, high: float) -> np.ndarray:
+    """One channel mapped to 0-1 over its display range, at full resolution.
+
+    Works in place on a float32 copy, so a full-resolution field costs one extra array.
+    """
+    scaled = image.astype(np.float32)  # always a copy; the caller's array is untouched
+    scaled -= low
+    scaled /= high - low
+    np.clip(scaled, 0.0, 1.0, out=scaled)
+    return scaled
+
+
+def downsample(scaled: np.ndarray, size: int) -> np.ndarray:
+    if scaled.shape[0] == size:
+        return scaled
+    return np.asarray(Image.fromarray(scaled).resize((size, size), Image.Resampling.BOX), dtype=np.float32)
+
+
+def scale_channel(image: np.ndarray, low: float, high: float, size: int) -> np.ndarray:
+    """One channel mapped to 0-1 over its display range and downsampled to ``size``."""
+    return downsample(scale_full(image, low, high), size)
+
+
+def gray_tile(scaled: np.ndarray) -> np.ndarray:
+    """8-bit grayscale of a scaled channel: exactly the pixels a grayscale render encodes."""
+    return (np.clip(scaled, 0.0, 1.0) * 255).astype(np.uint8)
+
+
+def add_channel(rgb: np.ndarray | None, scaled: np.ndarray, color: tuple[float, float, float]) -> np.ndarray:
+    """Blend one scaled channel additively into the RGB image (created on first use)."""
+    if rgb is None:
+        rgb = np.zeros((*scaled.shape, 3), dtype=np.float32)
+    for k, weight in enumerate(np.asarray(color, dtype=np.float32)):
+        rgb[..., k] += scaled * weight
+    return rgb
+
+
+def png_bytes(pixels: np.ndarray) -> bytes:
+    buffer = io.BytesIO()
+    Image.fromarray(pixels).save(buffer, format="PNG", compress_level=6)
+    return buffer.getvalue()
+
+
+def encode_png(rgb: np.ndarray | None) -> bytes:
+    if rgb is None:
+        raise InvalidQueryError("No channels selected.")
+    np.clip(rgb, 0.0, 1.0, out=rgb)
+    rgb *= 255
+    return png_bytes(rgb.astype(np.uint8))
+
+
+def encode_gray_tile(tile: np.ndarray) -> bytes:
+    """PNG of a cached grayscale tile, identical to rendering that channel in grayscale."""
+    return png_bytes(np.repeat(tile[..., None], 3, axis=2))
+
+
 def render_png(
     images: dict[str, np.ndarray],
     limits: dict[str, tuple[float, float]],
@@ -93,19 +153,9 @@ def render_png(
     """Scale each channel to its display range, downsample, and blend additively into a PNG."""
     rgb: np.ndarray | None = None
     for channel, image in images.items():
-        low, high = limits[channel]
-        scaled = np.clip((image.astype(np.float32) - low) / (high - low), 0.0, 1.0)
-        if scaled.shape[0] != size:
-            scaled = np.asarray(Image.fromarray(scaled).resize((size, size), Image.Resampling.BOX), dtype=np.float32)
         color = (1.0, 1.0, 1.0) if grayscale else CHANNEL_COLORS[channel]
-        layer = scaled[..., None] * np.asarray(color, dtype=np.float32)
-        rgb = layer if rgb is None else rgb + layer
-    if rgb is None:
-        raise InvalidQueryError("No channels selected.")
-    pixels = (np.clip(rgb, 0.0, 1.0) * 255).astype(np.uint8)
-    buffer = io.BytesIO()
-    Image.fromarray(pixels).save(buffer, format="PNG", compress_level=6)
-    return buffer.getvalue()
+        rgb = add_channel(rgb, scale_channel(image, *limits[channel], size), color)
+    return encode_png(rgb)
 
 
 class CellImageSource:
@@ -119,7 +169,12 @@ class CellImageSource:
         self._folders: dict[str, str] | None = None
         self._limits: dict[tuple[str, str, int, str], tuple[float, float]] = {}
         self._rendered: OrderedDict[tuple, bytes] = OrderedDict()
+        self._tiles: OrderedDict[tuple, np.ndarray] = OrderedDict()
         self._pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="cell-images")
+        # Decoding and scaling a field takes ~15 MB per render; a page of comparisons asks
+        # for many fields at once, so cap how many are processed together (downloads still
+        # run in parallel). Keeps a 512 MB host from running out of memory.
+        self._render_slots = threading.BoundedSemaphore(settings.cell_image_render_concurrency)
 
     @property
     def enabled(self) -> bool:
@@ -201,12 +256,15 @@ class CellImageSource:
             raise ImagesUnavailableError(f"Could not decode {path.name}; it will be refetched.") from exc
 
     # -- rendering -----------------------------------------------------------------------
-    def limits(self, plate: str, well: str, field: int, channel: str) -> tuple[float, float]:
+    def limits(
+        self, plate: str, well: str, field: int, channel: str, image: np.ndarray | None = None
+    ) -> tuple[float, float]:
+        """Contrast limits of one channel (cached); ``image`` avoids decoding the file again."""
         key = (plate, well, field, channel)
         with self._lock:
             if key in self._limits:
                 return self._limits[key]
-        value = contrast_limits(self.read(plate, well, field, channel))
+        value = contrast_limits(image if image is not None else self.read(plate, well, field, channel))
         with self._lock:
             self._limits[key] = value
         return value
@@ -243,6 +301,13 @@ class CellImageSource:
             if key in self._rendered:
                 self._rendered.move_to_end(key)
                 return self._rendered[key]
+            tile = None
+            if grayscale and size == TILE_SIZE:
+                tile = self._tiles.get((plate, well, field, channels[0], reference))
+        if tile is not None:  # Channels view after the composite: no download or decoding
+            png = encode_gray_tile(tile)
+            self._remember(key, png)
+            return png
 
         # Fetch everything needed in parallel (first view of a well downloads its channels).
         jobs = [(plate, well, field, c) for c in channels]
@@ -250,17 +315,38 @@ class CellImageSource:
             jobs += [(plate, reference, field, c) for c in channels]
         list(self._pool.map(lambda job: self.channel_path(*job), jobs))
 
-        images = {c: self.read(plate, well, field, c) for c in channels}
-        limits = {
-            c: display_range(self.limits(plate, well, field, c), self.limits(plate, reference, field, c))
-            for c in channels
-        }
-        png = render_png(images, limits, size, grayscale=grayscale)
+        with self._render_slots:
+            # One channel at a time, so only one full-resolution field is held per render.
+            rgb: np.ndarray | None = None
+            for c in channels:
+                reference_limits = self.limits(plate, reference, field, c)
+                image = self.read(plate, well, field, c)
+                low, high = display_range(self.limits(plate, well, field, c, image), reference_limits)
+                color = (1.0, 1.0, 1.0) if grayscale else CHANNEL_COLORS[c]
+                full = scale_full(image, low, high)
+                del image
+                scaled = downsample(full, size)
+                rgb = add_channel(rgb, scaled, color)
+                if not grayscale:
+                    self._keep_tile((plate, well, field, c, reference), gray_tile(downsample(full, TILE_SIZE)))
+                del full, scaled
+            png = encode_png(rgb)
+        self._remember(key, png)
+        return png
+
+    def _remember(self, key: tuple, png: bytes) -> None:
         with self._lock:
             self._rendered[key] = png
+            self._rendered.move_to_end(key)
             while len(self._rendered) > 96:
                 self._rendered.popitem(last=False)
-        return png
+
+    def _keep_tile(self, key: tuple, tile: np.ndarray) -> None:
+        with self._lock:
+            self._tiles[key] = tile
+            self._tiles.move_to_end(key)
+            while len(self._tiles) > MAX_TILES:
+                self._tiles.popitem(last=False)
 
 
 @lru_cache

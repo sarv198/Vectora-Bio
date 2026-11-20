@@ -59,10 +59,13 @@ class Settings(BaseSettings):
     cell_image_bucket_url: str = "https://cellpainting-gallery.s3.amazonaws.com"
     cell_image_prefix: str = "cpg0000-jump-pilot/source_4/images/2020_11_04_CPJUMP1/images/"
     cell_image_timeout_s: int = Field(default=60, ge=1)
+    # Fields decoded and rendered at once (~15 MB each); others wait. Downloads are not limited.
+    cell_image_render_concurrency: int = Field(default=2, ge=1, le=16)
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        # Browsers send the origin without a trailing slash; tolerate one pasted into the setting.
+        return [origin.strip().rstrip("/") for origin in self.cors_origins.split(",") if origin.strip().rstrip("/")]
 
     @property
     def raw_dir(self) -> Path:

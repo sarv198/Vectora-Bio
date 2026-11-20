@@ -75,7 +75,7 @@ export function SimilarityResults({ response }: { response: AnalysisResponse }) 
   const selectedPrediction = predictions.find((p) => p.candidate_id === selected);
 
   return (
-    <div className="space-y-9">
+    <div className="space-y-12">
       <QuerySummary
         label="Query compound"
         name={response.query_name ?? response.query_id}
@@ -172,7 +172,7 @@ export function SimilarityResults({ response }: { response: AnalysisResponse }) 
                             {prediction.candidate_name ?? prediction.candidate_id}
                           </Link>
                           {prediction.candidate_name && (
-                            <span className="block truncate font-mono text-[11.5px] text-ink-3">{prediction.candidate_id}</span>
+                            <span className="subline mt-0.5 block truncate">{prediction.candidate_id}</span>
                           )}
                         </td>
                         <td className={`${TD} text-right`}>

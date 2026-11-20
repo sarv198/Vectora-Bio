@@ -27,7 +27,7 @@ export function ApiErrorNotice({ error }: { error: ApiError }) {
   return (
     <div
       role={expected ? "status" : "alert"}
-      className={`rounded-lg border-l-2 bg-surface-2 py-3 pr-4 pl-4 text-[13.5px] ${expected ? "border-warn" : "border-danger"}`}
+      className={`border-l-2 py-1 pl-4 text-[13.5px] ${expected ? "border-warn" : "border-danger"}`}
     >
       <p className="font-medium text-ink">
         {TITLES[error.code] ?? humanize(error.code)}

@@ -231,7 +231,7 @@ function PlatesView() {
       ) : !plates.data ? (
         <LoadingState />
       ) : (
-        <div className="space-y-9">
+        <div className="space-y-12">
           <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
             <Field label="Plate" className="w-64">
               <Select

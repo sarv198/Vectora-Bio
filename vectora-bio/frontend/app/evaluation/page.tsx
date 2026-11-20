@@ -331,7 +331,7 @@ export default function EvaluationPage() {
       </Panel>
       )}
 
-      <div className="mt-9 space-y-9">
+      <div className="mt-12 space-y-12">
         {runner.error && <ApiErrorNotice error={runner.error} />}
         {error ? (
           <ApiErrorNotice error={error} />

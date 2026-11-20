@@ -36,7 +36,7 @@ function MoaView() {
   const params = useSearchParams();
   const linkedCompound = params.get("compound") ?? "";
   const [compoundId, setCompoundId] = useSessionState("moa.query", linkedCompound);
-  const [context, setContext] = useSessionState("moa.context", { ...DEFAULT_CONTEXT, topK: "5" });
+  const [context, setContext] = useSessionState("moa.context", DEFAULT_CONTEXT);
   const [neighbors, setNeighbors] = useSessionState("moa.neighbors", "10");
   const { data, error, loading, run } = useApiMutation(api.inferMoa, "moa.result");
 

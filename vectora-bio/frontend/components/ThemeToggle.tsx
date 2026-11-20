@@ -1,6 +1,5 @@
 "use client";
 
-import { Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export type ThemeChoice = "system" | "light" | "dark";
@@ -21,13 +20,13 @@ function apply(choice: ThemeChoice) {
   }
 }
 
-const OPTIONS: { value: ThemeChoice; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
+const OPTIONS: { value: ThemeChoice; label: string }[] = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "Auto" },
 ];
 
-/** Light / dark / system switch. */
+/** Light / dark / system switch, drawn as small text options on the sidebar. */
 export function ThemeToggle() {
   const [choice, setChoice] = useState<ThemeChoice>("system");
 
@@ -37,24 +36,25 @@ export function ThemeToggle() {
   }, []);
 
   return (
-    <div role="radiogroup" aria-label="Colour theme" className="inline-flex rounded-md bg-surface-3 p-0.5">
-      {OPTIONS.map(({ value, label, icon: Icon }) => (
+    <div role="radiogroup" aria-label="Colour theme" className="flex items-center gap-3">
+      {OPTIONS.map(({ value, label }) => (
         <button
           key={value}
           type="button"
           role="radio"
           aria-checked={choice === value}
-          title={`${label} theme`}
+          title={value === "system" ? "Follow the system theme" : `${label} theme`}
           onClick={() => {
             setChoice(value);
             apply(value);
           }}
-          className={`flex h-6 w-7 items-center justify-center rounded-[3px] ${
-            choice === value ? "bg-surface text-ink shadow-[0_1px_1px_rgba(0,0,0,0.06)]" : "text-ink-3 hover:text-ink"
+          className={`border-b pb-0.5 font-mono text-[10.5px] tracking-[0.08em] uppercase ${
+            choice === value
+              ? "border-sidebar-accent text-sidebar-ink"
+              : "border-transparent text-sidebar-ink-2 hover:text-sidebar-ink"
           }`}
         >
-          <Icon className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
-          <span className="sr-only">{label}</span>
+          {label}
         </button>
       ))}
     </div>

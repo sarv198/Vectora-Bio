@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Info, Loader2, type LucideIcon } from "lucide-react";
+import { ChevronRight, Info, Loader2, type LucideIcon, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import type {
   ButtonHTMLAttributes,
@@ -11,7 +11,7 @@ import type {
 } from "react";
 
 /* ---------------------------------------------------------------------------------------
- * Page structure
+ * Page structure: hierarchy comes from type, rules and spacing, not boxes.
  * ------------------------------------------------------------------------------------- */
 
 export function PageHeader({
@@ -27,38 +27,45 @@ export function PageHeader({
   context?: string;
 }) {
   return (
-    <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        {context && <p className="mb-1 text-[12.5px] text-ink-3">{context}</p>}
-        <h1 className="text-[22px] leading-tight font-semibold tracking-[-0.01em] text-ink">{title}</h1>
-        {description && <p className="mt-1.5 max-w-[68ch] text-[13.5px] leading-relaxed text-ink-2">{description}</p>}
+    <header className="mb-9 border-b border-line pb-7">
+      {context && (
+        <p className="eyebrow mb-4 flex items-center gap-3">
+          <span className="h-px w-8 bg-accent" aria-hidden />
+          {context}
+        </p>
+      )}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h1 className="text-[34px] leading-[1.05] font-light tracking-[-0.035em] text-ink sm:text-[42px]">{title}</h1>
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {description && <p className="mt-3 max-w-[60ch] text-[15px] leading-relaxed text-ink-2">{description}</p>}
     </header>
   );
 }
 
-/** A titled region of a page. No box: hierarchy comes from the heading and spacing. */
+/** A titled region of a page, opened by a hairline rule. `plain` drops the rule. */
 export function Section({
   title,
   description,
   actions,
   children,
   className = "",
+  plain = false,
 }: {
   title?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
+  plain?: boolean;
 }) {
   return (
-    <section className={`min-w-0 ${className}`}>
+    <section className={`min-w-0 ${plain ? "" : "border-t border-line pt-5"} ${className}`}>
       {(title || actions) && (
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
           <div className="min-w-0">
-            {title && <h2 className="text-[15px] font-semibold text-ink">{title}</h2>}
-            {description && <p className="mt-0.5 text-[13px] text-ink-3">{description}</p>}
+            {title && <h2 className="text-[20px] leading-tight font-normal tracking-[-0.02em] text-ink">{title}</h2>}
+            {description && <p className="mt-1 text-[13px] text-ink-3">{description}</p>}
           </div>
           {actions && <div className="flex items-center gap-3 text-[12.5px] text-ink-3">{actions}</div>}
         </div>
@@ -68,9 +75,9 @@ export function Section({
   );
 }
 
-/** The one bordered container: used for the query area and similar working surfaces. */
+/** The one framed surface: the query area of an analysis. */
 export function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-lg border border-line bg-surface ${className}`}>{children}</div>;
+  return <div className={`border border-line-strong bg-surface ${className}`}>{children}</div>;
 }
 
 export function Divider({ className = "" }: { className?: string }) {
@@ -89,21 +96,22 @@ export interface MetricItem {
   hint?: string;
 }
 
-/** A row of key figures separated by hairlines (not boxed tiles). */
+/** Key figures in a shared-border grid: small uppercase label, large light number. */
 export function Metrics({ items }: { items: MetricItem[] }) {
   const tone = { neutral: "text-ink", ok: "text-ok", warn: "text-warn", accent: "text-accent" };
   return (
-    <dl className="grid grid-cols-2 gap-y-4 border-y border-line py-3.5 sm:flex sm:flex-wrap sm:divide-x sm:divide-line">
+    <dl className="grid grid-cols-2 border-t border-l border-line sm:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]">
       {items.map((item, index) => (
-        <div key={index} className="min-w-0 pr-6 sm:px-6 sm:first:pl-0">
-          <dt className="flex items-center gap-1 text-[12px] text-ink-3">
+        <div key={index} className="min-w-0 border-r border-b border-line px-4 py-4">
+          <dt className="eyebrow flex items-center gap-1.5">
+            <span className="annot text-[10px]">{String(index + 1).padStart(2, "0")}</span>
             {item.label}
             {item.hint && <InfoTip>{item.hint}</InfoTip>}
           </dt>
-          <dd className={`tabular mt-0.5 text-[17px] leading-snug font-semibold ${tone[item.tone ?? "neutral"]}`}>
+          <dd className={`tabular mt-3 text-[30px] leading-none font-light tracking-[-0.03em] ${tone[item.tone ?? "neutral"]}`}>
             {item.value}
           </dd>
-          {item.detail && <dd className="mt-0.5 max-w-[22ch] truncate text-[12px] text-ink-3">{item.detail}</dd>}
+          {item.detail && <dd className="mt-2 truncate text-[12px] text-ink-3">{item.detail}</dd>}
         </div>
       ))}
     </dl>
@@ -125,14 +133,14 @@ export function ScoreBar({
   tone?: "accent" | "muted";
 }) {
   const v = typeof value === "number" && Number.isFinite(value) ? value : 0;
-  const fill = tone === "accent" ? "var(--accent)" : "var(--ink-3)";
+  const fill = tone === "accent" ? "var(--sage)" : "var(--ink-3)";
   if (signed) {
     const half = Math.min(Math.abs(v) / max, 1) * 50;
     return (
-      <span className="relative inline-block h-1.5 shrink-0 rounded-full bg-surface-3" style={{ width }} aria-hidden>
-        <span className="absolute top-[-2px] bottom-[-2px] left-1/2 w-px bg-line-strong" />
+      <span className="relative inline-block h-1 shrink-0 bg-surface-3" style={{ width }} aria-hidden>
+        <span className="absolute top-[-3px] bottom-[-3px] left-1/2 w-px bg-line-strong" />
         <span
-          className="absolute top-0 bottom-0 rounded-full"
+          className="absolute top-0 bottom-0"
           style={{
             width: `${half}%`,
             left: v >= 0 ? "50%" : undefined,
@@ -144,9 +152,9 @@ export function ScoreBar({
     );
   }
   return (
-    <span className="relative inline-block h-1.5 shrink-0 rounded-full bg-surface-3" style={{ width }} aria-hidden>
+    <span className="relative inline-block h-1 shrink-0 bg-surface-3" style={{ width }} aria-hidden>
       <span
-        className="absolute top-0 bottom-0 left-0 rounded-full"
+        className="absolute top-0 bottom-0 left-0"
         style={{ width: `${Math.max(0, Math.min(v / max, 1)) * 100}%`, background: fill }}
       />
     </span>
@@ -198,18 +206,18 @@ export function InfoTip({ children, side = "top" }: { children: ReactNode; side?
       <button
         ref={anchor}
         type="button"
-        className="inline-flex text-ink-3 hover:text-ink-2 focus-visible:text-ink-2"
+        className="inline-flex text-ink-3 normal-case hover:text-ink focus-visible:text-ink"
         aria-label="More information"
         onFocus={show}
         onBlur={hide}
         onClick={(event) => event.stopPropagation()}
       >
-        <Info className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+        <Info className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden />
       </button>
       {position && (
         <span
           role="tooltip"
-          className="pointer-events-none fixed z-50 rounded-md bg-ink px-2.5 py-2 text-left text-[12px] leading-snug font-normal tracking-normal whitespace-normal text-bg normal-case shadow-sm"
+          className="pointer-events-none fixed z-50 bg-ink px-3 py-2 text-left text-[12px] leading-snug font-normal tracking-normal whitespace-normal text-bg normal-case shadow-pop"
           style={{
             width,
             left: position.left,
@@ -228,12 +236,57 @@ export function InfoTip({ children, side = "top" }: { children: ReactNode; side?
 export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "accent" }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-px text-[11.5px] leading-[1.45] whitespace-nowrap ${
-        tone === "accent" ? "border-accent-line text-accent" : "border-line text-ink-2"
+      className={`inline-flex items-center gap-1 border px-1.5 py-px text-[11px] leading-[1.5] whitespace-nowrap ${
+        tone === "accent" ? "border-accent-line text-accent" : "border-line-strong text-ink-2"
       }`}
     >
       {children}
     </span>
+  );
+}
+
+/** Two small dots: the separator between items in a mono meta line ("PLATE • • WELL"). */
+export function Dots({ className = "" }: { className?: string }) {
+  return (
+    <span className={`mx-2 inline-flex shrink-0 items-center gap-[3px] align-middle opacity-60 ${className}`} aria-hidden>
+      <span className="h-[3px] w-[3px] rounded-full bg-current" />
+      <span className="h-[3px] w-[3px] rounded-full bg-current" />
+    </span>
+  );
+}
+
+/** Mono uppercase readout: items joined by dot connectors. */
+export function MetaLine({ items, className = "" }: { items: ReactNode[]; className?: string }) {
+  const shown = items.filter((item) => item !== null && item !== undefined && item !== false && item !== "");
+  return (
+    <span className={`annot inline-flex flex-wrap items-center ${className}`}>
+      {shown.map((item, index) => (
+        <span key={index} className="inline-flex items-center">
+          {index > 0 && <Dots />}
+          {item}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** "+" registration marks at the four corners of a positioned container. */
+export function Crosshairs({ className = "text-line-strong", inset = "-6px" }: { className?: string; inset?: string }) {
+  const mark = "pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2";
+  const positions = [
+    { left: inset, top: inset },
+    { left: `calc(100% - ${inset})`, top: inset },
+    { left: inset, top: `calc(100% - ${inset})` },
+    { left: `calc(100% - ${inset})`, top: `calc(100% - ${inset})` },
+  ];
+  return (
+    <>
+      {positions.map((style, index) => (
+        <svg key={index} viewBox="0 0 12 12" className={`${mark} ${className}`} style={style} aria-hidden>
+          <path d="M6 0v12M0 6h12" stroke="currentColor" strokeWidth="1" />
+        </svg>
+      ))}
+    </>
   );
 }
 
@@ -245,7 +298,7 @@ export function Mono({ children, className = "" }: { children: ReactNode; classN
 export function Status({ tone, children }: { tone: "ok" | "warn" | "danger" | "neutral"; children: ReactNode }) {
   const dot = { ok: "bg-ok", warn: "bg-warn", danger: "bg-danger", neutral: "bg-ink-3" }[tone];
   return (
-    <span className="inline-flex items-center gap-1.5 text-[12.5px] whitespace-nowrap text-ink-2">
+    <span className="inline-flex items-center gap-2 font-mono text-[10.5px] tracking-[0.06em] whitespace-nowrap text-ink-2 uppercase">
       <span className={`h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
       {children}
     </span>
@@ -265,9 +318,9 @@ export function Notice({
   title?: ReactNode;
   children: ReactNode;
 }) {
-  const rule = { info: "border-line-strong", warn: "border-warn", danger: "border-danger" }[tone];
+  const rule = { info: "border-sage", warn: "border-warn", danger: "border-danger" }[tone];
   return (
-    <div className={`border-l-2 py-0.5 pl-3 text-[13px] leading-relaxed text-ink-2 ${rule}`}>
+    <div className={`border-l-2 py-0.5 pl-4 text-[13.5px] leading-relaxed text-ink-2 ${rule}`}>
       {title && <p className="font-medium text-ink">{title}</p>}
       <div>{children}</div>
     </div>
@@ -276,8 +329,8 @@ export function Notice({
 
 export function LoadingState({ label = "Loading" }: { label?: string }) {
   return (
-    <div className="flex items-center gap-2 py-10 text-[13px] text-ink-3" role="status">
-      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} aria-hidden />
+    <div className="flex items-center gap-2.5 border-t border-line py-10 text-[13px] text-ink-3" role="status">
+      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.6} aria-hidden />
       {label}
     </div>
   );
@@ -285,9 +338,10 @@ export function LoadingState({ label = "Loading" }: { label?: string }) {
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="rounded-lg bg-surface-2 px-6 py-12 text-center">
-      <p className="text-[14px] font-medium text-ink">{title}</p>
-      {children && <div className="mx-auto mt-1 max-w-[52ch] text-[13px] text-ink-3">{children}</div>}
+    <div className="border-y border-line py-14 text-center">
+      <p className="eyebrow">Nothing here yet</p>
+      <p className="mt-3 text-[22px] font-light tracking-[-0.02em] text-ink">{title}</p>
+      {children && <div className="mx-auto mt-2 max-w-[52ch] text-[13.5px] text-ink-3">{children}</div>}
     </div>
   );
 }
@@ -309,15 +363,15 @@ export function Field({
 }) {
   return (
     <label className={`block min-w-0 ${className}`}>
-      <span className="mb-1.5 block text-[12.5px] font-medium text-ink-2">{label}</span>
+      <span className="eyebrow mb-2 block leading-4">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-[12px] leading-snug text-ink-3">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-[12px] leading-snug text-ink-3">{hint}</span>}
     </label>
   );
 }
 
 const CONTROL =
-  "h-8 w-full rounded-md border border-line-strong bg-surface px-2.5 text-[13.5px] text-ink placeholder:text-ink-3 hover:border-ink-3 focus:border-accent focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none";
+  "h-10 w-full rounded-md border border-line-strong bg-surface px-3 text-[14px] text-ink placeholder:text-ink-3 hover:border-ink-3 focus:border-ink focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none";
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${CONTROL} ${props.className ?? ""}`} />;
@@ -350,17 +404,26 @@ export function Button({
   variant?: "primary" | "secondary" | "ghost";
   size?: "sm" | "md";
 }) {
+  // Primary and secondary are pills with a mono uppercase label; ghost stays a plain text button.
   const styles = {
-    primary: "bg-accent text-accent-ink hover:bg-accent-hover",
-    secondary: "border border-line-strong bg-surface text-ink hover:border-ink-3",
-    ghost: "text-ink-2 hover:bg-surface-2 hover:text-ink",
+    primary: "rounded-full bg-ink font-mono tracking-[0.08em] text-bg uppercase hover:bg-accent hover:text-accent-ink",
+    secondary:
+      "rounded-full border border-ink font-mono tracking-[0.08em] text-ink uppercase hover:bg-ink hover:text-bg",
+    ghost: "rounded-md text-ink-2 hover:bg-surface-2 hover:text-ink",
   }[variant];
-  const sizes = size === "sm" ? "h-7 px-2.5 text-[12.5px]" : "h-8 px-3.5 text-[13.5px]";
+  const sizes =
+    variant === "ghost"
+      ? size === "sm"
+        ? "h-8 px-3 text-[12.5px]"
+        : "h-10 px-4 text-[13.5px]"
+      : size === "sm"
+        ? "h-8 px-4 text-[10.5px]"
+        : "h-10 px-6 text-[11.5px]";
   return (
     <button
       {...props}
       disabled={props.disabled || loading}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 ${styles} ${sizes} ${props.className ?? ""}`}
+      className={`inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 ${styles} ${sizes} ${props.className ?? ""}`}
     >
       {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
       {children}
@@ -368,7 +431,7 @@ export function Button({
   );
 }
 
-/** Bordered toggle that reveals more (parameters, method notes). */
+/** Uppercase text toggle that reveals more (parameters, method notes). The + turns into ×. */
 export function DisclosureButton({
   open,
   onToggle,
@@ -385,22 +448,24 @@ export function DisclosureButton({
       type="button"
       aria-expanded={open}
       onClick={onToggle}
-      className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium ${
-        open
-          ? "border-accent-line bg-accent-soft text-accent"
-          : "border-line-strong bg-surface text-ink hover:border-ink-3"
+      className={`group inline-flex h-9 items-center gap-2 border-b font-mono text-[11px] font-medium tracking-[0.08em] uppercase ${
+        open ? "border-accent text-accent" : "border-line-strong text-ink-2 hover:border-ink hover:text-ink"
       }`}
     >
-      {Icon && <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden />}
+      {Icon && <Icon className="h-3.5 w-3.5" strokeWidth={1.6} aria-hidden />}
       {children}
-      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+      <Plus
+        className={`h-3.5 w-3.5 text-accent ${open ? "rotate-45" : "group-hover:rotate-90"}`}
+        strokeWidth={1.8}
+        aria-hidden
+      />
     </button>
   );
 }
 
 /**
- * The expand control at the end of a table row. Drawn as a small bordered square; an invisible
- * margin around it (the ::before box) widens the hover and click target without moving layout.
+ * The expand control at the end of a table row: a small square; an invisible margin around it
+ * (the ::before box) widens the hover and click target without moving layout.
  */
 export function RowExpander({ open, onToggle, label }: { open: boolean; onToggle?: () => void; label: string }) {
   return (
@@ -413,18 +478,16 @@ export function RowExpander({ open, onToggle, label }: { open: boolean; onToggle
       aria-expanded={open}
       aria-label={label}
       title={open ? "Hide details" : "Show details"}
-      className={`relative inline-flex h-6 w-6 items-center justify-center rounded-md border before:absolute before:-inset-2.5 before:content-[''] ${
-        open
-          ? "border-accent bg-accent text-accent-ink"
-          : "border-line-strong bg-surface text-ink-2 hover:border-accent hover:bg-accent-soft hover:text-accent"
+      className={`relative inline-flex h-7 w-7 items-center justify-center rounded-full border before:absolute before:-inset-2 before:rounded-full before:content-[''] ${
+        open ? "border-ink bg-ink text-bg" : "border-line-strong text-ink-2 hover:border-ink hover:text-ink"
       }`}
     >
-      <ChevronRight className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2} aria-hidden />
+      <ChevronRight className={`h-4 w-4 ${open ? "rotate-90" : ""}`} strokeWidth={1.8} aria-hidden />
     </button>
   );
 }
 
-/** Small segmented control (switching views within a section). */
+/** Small view switch drawn as underlined labels. */
 export function Segmented<T extends string>({
   value,
   options,
@@ -437,7 +500,7 @@ export function Segmented<T extends string>({
   label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-md bg-surface-3 p-0.5">
+    <div role="radiogroup" aria-label={label} className="inline-flex gap-4">
       {options.map((option) => (
         <button
           key={option.value}
@@ -446,8 +509,8 @@ export function Segmented<T extends string>({
           aria-checked={value === option.value}
           title={option.title}
           onClick={() => onChange(option.value)}
-          className={`h-6 rounded-[3px] px-2.5 text-[12.5px] whitespace-nowrap ${
-            value === option.value ? "bg-surface font-medium text-ink shadow-[0_1px_1px_rgba(0,0,0,0.06)]" : "text-ink-3 hover:text-ink"
+          className={`h-7 border-b text-[12.5px] whitespace-nowrap ${
+            value === option.value ? "border-accent font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"
           }`}
         >
           {option.label}
@@ -468,7 +531,7 @@ export function Tabs<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div role="tablist" className="flex gap-5 border-b border-line">
+    <div role="tablist" className="flex gap-6 border-b border-line">
       {options.map((option) => (
         <button
           key={option.value}
@@ -477,8 +540,8 @@ export function Tabs<T extends string>({
           aria-selected={value === option.value}
           title={option.title}
           onClick={() => onChange(option.value)}
-          className={`-mb-px border-b-2 pb-2 text-[13.5px] ${
-            value === option.value ? "border-accent font-medium text-ink" : "border-transparent text-ink-3 hover:text-ink"
+          className={`-mb-px border-b-2 pb-2.5 text-[13.5px] ${
+            value === option.value ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink"
           }`}
         >
           {option.label}
@@ -499,11 +562,12 @@ export function TableFrame({ children }: { children: ReactNode }) {
 
 export const TABLE = "w-full text-[13.5px]";
 export const THEAD = "border-b border-line text-left";
-export const TH = "px-3 py-2 text-[12px] font-medium whitespace-nowrap text-ink-3 first:pl-2 last:pr-2";
-export const TD = "px-3 py-2.5 align-top first:pl-2 last:pr-2";
+export const TH =
+  "px-3 py-2.5 font-mono text-[10.5px] font-medium tracking-[0.08em] whitespace-nowrap text-ink-3 uppercase first:pl-2 last:pr-2";
+export const TD = "px-3 py-3 align-top first:pl-2 last:pr-2";
 export const TR = "border-b border-line last:border-0";
 /** Cell holding a RowExpander: extra right padding so its widened hit area stays inside the table. */
-export const TD_EXPANDER = "w-12 px-3 py-2 pr-4! text-right align-top";
+export const TD_EXPANDER = "w-12 px-3 py-2.5 pr-4! text-right align-top";
 
 /** Props that make a table row selectable by click or keyboard. */
 export function selectableRow(selected: boolean, onSelect: () => void) {
@@ -518,7 +582,7 @@ export function selectableRow(selected: boolean, onSelect: () => void) {
     tabIndex: 0,
     "aria-selected": selected,
     className: `${TR} cursor-pointer outline-none focus-visible:bg-surface-2 ${
-      selected ? "bg-accent-soft shadow-[inset_2px_0_0_var(--accent)]" : "hover:bg-surface-2"
+      selected ? "bg-accent-soft/70 shadow-[inset_2px_0_0_var(--accent)]" : "hover:bg-surface-2"
     }`,
   };
 }

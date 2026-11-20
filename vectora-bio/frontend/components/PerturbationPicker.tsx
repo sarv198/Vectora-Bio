@@ -77,7 +77,7 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
 
   return (
     <div className="relative">
-      <Search className="pointer-events-none absolute top-2 left-2.5 h-4 w-4 text-ink-3" strokeWidth={1.75} aria-hidden />
+      <Search className="pointer-events-none absolute top-3 left-3 h-4 w-4 text-ink-3" strokeWidth={1.6} aria-hidden />
       <input
         role="combobox"
         aria-expanded={open && options.length > 0}
@@ -113,7 +113,7 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
             setOpen(false);
           }
         }}
-        className="h-8 w-full rounded-md border border-line-strong bg-surface pr-3 pl-8 text-[13.5px] text-ink placeholder:text-ink-3 hover:border-ink-3 focus:border-accent focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none"
+        className="h-10 w-full rounded-md border border-line-strong bg-surface pr-3 pl-9 text-[14px] text-ink placeholder:text-ink-3 hover:border-ink-3 focus:border-ink focus:shadow-[0_0_0_3px_var(--focus)] focus:outline-none"
       />
       {selected && (
         <p className="mt-1 truncate text-[12px] text-ink-3">
@@ -125,7 +125,7 @@ export function PerturbationPicker({ value, onChange }: { value: string; onChang
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-80 w-full overflow-auto rounded-md border border-line bg-surface py-1 shadow-[0_6px_20px_rgba(0,0,0,0.08)]"
+          className="absolute z-30 mt-1 max-h-80 w-full overflow-auto border border-line-strong bg-surface py-1 shadow-pop"
           onMouseDown={() => blurTimer.current && clearTimeout(blurTimer.current)}
         >
           {options.map((item, index) => (

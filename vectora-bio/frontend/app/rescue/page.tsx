@@ -36,7 +36,7 @@ function RescueView() {
       exclude_weak_responses: excludeWeak,
       min_response_percentile: Math.min(1, Math.max(0, (optionalNumber(minStrength) ?? 95) / 100)),
       exclude_stress_like: excludeStress,
-      top_k: optionalNumber(context.topK) ?? 10,
+      top_k: optionalNumber(context.topK) ?? 5,
     });
   };
 

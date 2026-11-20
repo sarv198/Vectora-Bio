@@ -123,7 +123,7 @@ function PrioritizedTable({
                   </td>
                   <td className={`${TD} text-ink-2`}>
                     <span className="tabular">{topPercent(info.phenotypic_score * 100)}</span>
-                    <span className="block text-[12px] text-ink-3">
+                    <span className="subline mt-0.5 block">
                       {typeLabel(best?.perturbation_type)} cosine {formatSigned(best?.cosine, 2)} · {info.n_strong_reagents} of{" "}
                       {info.n_reagents} reagents strong
                     </span>
@@ -134,7 +134,7 @@ function PrioritizedTable({
                     ) : (
                       <>
                         <span className="tabular">{Math.round(info.neighbor_support * 100)}%</span>
-                        <span className="block max-w-[16rem] truncate text-[12px] text-ink-3">
+                        <span className="subline mt-0.5 block max-w-[16rem] truncate">
                           {info.supporting_compounds.map((c) => c.compound_name ?? c.compound_id).join(", ")}
                         </span>
                       </>
@@ -286,7 +286,7 @@ export function TargetResults({
   const { summary } = prioritized;
 
   return (
-    <div className="space-y-9">
+    <div className="space-y-12">
       <QuerySummary
         label="Query compound"
         name={prioritized.query_name ?? prioritized.query_id}

@@ -1,164 +1,194 @@
 @import "tailwindcss";
 
 /*
- * CellScope design tokens.
- * Warm neutral surfaces, charcoal ink, one muted teal accent. Colour is reserved for
- * interaction (accent), scientific meaning (data ramps) and state (ok / warn / danger).
- * Light is the default; dark applies when the OS prefers it (unless the user chose light)
- * or when the user chose dark. The theme switch writes data-theme on <html>.
+ * vectora-bio design tokens.
+ *
+ * Editorial and technical: structure comes from hairline rules and shared-border grids, not
+ * boxes. Square corners, no gradients, no card shadows. Large light headings, small uppercase
+ * labels and mono annotations for identifiers.
+ *
+ * Palettes: "Clinical Precision" (light) and "Obsidian Well" (dark). One accent (slate blue /
+ * steel blue), teal or sage as the secondary data colour, ochre or amber for highlights.
+ * Data ramps: blue = increase / same direction, red (light) or mauve (dark) = opposite.
+ * Light is the default; dark applies when the OS prefers it (unless the user chose light) or
+ * when the user chose dark. The theme switch writes data-theme on <html>.
  */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
+/* Light: "Clinical Precision". Palette colours are used as given for fills, rules and charts;
+   where one is too faint for small text (teal, dusty red, ochre), text uses a deeper shade
+   of the same hue. */
 :root {
   color-scheme: light;
-  --bg: #faf9f6;
-  --sidebar: #f2f0eb;
+  --bg: #f5f6f7;
   --surface: #ffffff;
-  --surface-2: #f3f1ec;
-  --surface-3: #ebe8e1;
-  --line: #e4e1d9;
-  --line-strong: #cfcbc1;
-  --ink: #1e211f;
-  --ink-2: #4a4e4b;
-  --ink-3: #7a7d78;
-  --accent: #2b6e62;
-  --accent-hover: #235c52;
+  --surface-2: #eef0f2;
+  --surface-3: #e6e9ec;
+  --line: #e1e5e9;
+  --line-strong: #c5ccd4;
+  --ink: #1b2430;
+  --ink-2: #475262;
+  --ink-3: #646e7b;
+  --accent: #526d8a; /* slate blue */
+  --accent-hover: #435a73;
   --accent-ink: #ffffff;
-  --accent-soft: #e5eeea;
-  --accent-line: #b7d1c8;
-  --focus: rgba(43, 110, 98, 0.28);
-  --ok: #3b7a4c;
-  --ok-soft: #e6f0e8;
-  --warn: #93641c;
-  --warn-soft: #f6eedf;
-  --warn-line: #e3cfa8;
-  --danger: #a3432f;
-  --danger-soft: #f6e7e2;
-  --danger-line: #e5bfb3;
+  --accent-soft: #e7edf3;
+  --accent-line: #bccad8;
+  --sage: #5d9189; /* muted teal */
+  --focus: rgba(82, 109, 138, 0.28);
+  --ok: #3f7169;
+  --ok-soft: #e2efed;
+  --warn: #8a6630;
+  --warn-soft: #f6eddf;
+  --warn-line: #dcc39b;
+  --danger: #a35555;
+  --danger-soft: #f6e6e6;
+  --danger-line: #e2bcbc;
+  /* The sidebar uses the dark palette in both themes. */
+  --sidebar: #161d27;
+  --sidebar-ink: #e6eaf0;
+  --sidebar-ink-2: #8d98a8;
+  --sidebar-line: #293342;
+  --sidebar-accent: #c6a46a;
+  --pop-shadow: 0 10px 30px -10px rgba(27, 36, 48, 0.22);
   /* Charts */
-  --series-1: #13786a;
-  --series-2: #c4772a;
-  --series-3: #7a6aa6;
-  --series-baseline: #b9b6ad;
-  --grid: #ebe8e1;
+  --series-1: #526d8a;
+  --series-2: #b58b52;
+  --series-3: #5d9189;
+  --series-baseline: #c2c9d1;
+  --grid: #e6e9ec;
   /* Microscopy viewer stays dark in both themes. */
-  --viewer: #070808;
-  --viewer-line: #2a2d2b;
-  /* Sequential magnitude (teal), step 0 = indistinguishable from control. */
-  --heat-0: #f0eee8;
-  --heat-1: #d9e8e2;
-  --heat-2: #aacdc1;
-  --heat-3: #6fa898;
-  --heat-4: #3b8070;
-  --heat-5: #1d5a4c;
+  --viewer: #0b0e13;
+  --viewer-line: #293342;
+  /* Sequential magnitude (slate blue), step 0 = indistinguishable from control. */
+  --heat-0: #eef0f2;
+  --heat-1: #dce4ec;
+  --heat-2: #b9c8d8;
+  --heat-3: #8da5be;
+  --heat-4: #57728f;
+  --heat-5: #3f5a77;
   --heat-ink-strong: #ffffff;
-  /* Diverging agreement: teal = same direction, terracotta = opposite. */
-  --div-neg-2: #b0573b;
-  --div-neg-1: #e9c1b1;
-  --div-mid: #edeae3;
-  --div-pos-1: #b4d5ca;
-  --div-pos-2: #2a7564;
+  /* Diverging agreement: slate blue = same direction, dusty red = opposite. */
+  --div-neg-2: #a35555;
+  --div-neg-1: #ecd2d2;
+  --div-mid: #eef0f2;
+  --div-pos-1: #c6d4e2;
+  --div-pos-2: #526d8a;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #151716;
-    --sidebar: #191b1a;
-    --surface: #1c1e1d;
-    --surface-2: #222524;
-    --surface-3: #2a2d2b;
-    --line: #2c2f2d;
-    --line-strong: #3d413e;
-    --ink: #e8e7e2;
-    --ink-2: #b6b8b2;
-    --ink-3: #888b85;
-    --accent: #6fb3a1;
-    --accent-hover: #86c2b2;
-    --accent-ink: #0f1211;
-    --accent-soft: #1e2d29;
-    --accent-line: #2f4a43;
-    --focus: rgba(111, 179, 161, 0.32);
-    --ok: #79b98a;
-    --ok-soft: #1b2a1f;
-    --warn: #d6a95c;
-    --warn-soft: #2b2416;
-    --warn-line: #54452a;
-    --danger: #e08a74;
-    --danger-soft: #2e1d18;
-    --danger-line: #5b3328;
-    --series-1: #3f9e89;
-    --series-2: #c98034;
-    --series-3: #9a8cc8;
-    --series-baseline: #6c6f69;
-    --grid: #2a2d2b;
+    --bg: #0d1117;
+    --surface: #161d27;
+    --surface-2: #1a222e;
+    --surface-3: #212a38;
+    --line: #293342;
+    --line-strong: #3a4659;
+    --ink: #e6eaf0;
+    --ink-2: #aeb7c4;
+    --ink-3: #8a95a6;
+    --accent: #6b9bb8; /* steel blue */
+    --accent-hover: #85afc8;
+    --accent-ink: #0d1117;
+    --accent-soft: #182836;
+    --accent-line: #34526a;
+    --sage: #7fa995;
+    --focus: rgba(107, 155, 184, 0.32);
+    --ok: #7fa995;
+    --ok-soft: #16271f;
+    --warn: #c6a46a; /* muted amber */
+    --warn-soft: #2a2416;
+    --warn-line: #574a2c;
+    --danger: #d98c8c;
+    --danger-soft: #2c1a1d;
+    --danger-line: #5c3236;
+    --sidebar: #161d27;
+    --sidebar-ink: #e6eaf0;
+    --sidebar-ink-2: #8d98a8;
+    --sidebar-line: #293342;
+    --sidebar-accent: #c6a46a;
+    --pop-shadow: 0 14px 34px -10px rgba(0, 0, 0, 0.65);
+    --series-1: #6b9bb8;
+    --series-2: #c6a46a;
+    --series-3: #7fa995;
+    --series-baseline: #4a5568;
+    --grid: #212a38;
     --viewer: #000000;
-    --viewer-line: #2a2d2b;
-    --heat-0: #232624;
-    --heat-1: #1d3530;
-    --heat-2: #24534a;
-    --heat-3: #2f7466;
-    --heat-4: #4e9a88;
-    --heat-5: #8cc5b5;
-    --heat-ink-strong: #0f1211;
-    --div-neg-2: #d27a5c;
-    --div-neg-1: #55342a;
-    --div-mid: #2a2d2b;
-    --div-pos-1: #24514a;
-    --div-pos-2: #5fae9a;
+    --viewer-line: #293342;
+    --heat-0: #1a222e;
+    --heat-1: #1e3142;
+    --heat-2: #294860;
+    --heat-3: #3d6883;
+    --heat-4: #6b9bb8;
+    --heat-5: #aacade;
+    --heat-ink-strong: #0d1117;
+    /* Diverging agreement: steel blue = same direction, dusty mauve = opposite. */
+    --div-neg-2: #a58baf;
+    --div-neg-1: #3b3044;
+    --div-mid: #212a38;
+    --div-pos-1: #294860;
+    --div-pos-2: #6b9bb8;
   }
 }
 
+/* Dark: "Obsidian Well". */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #151716;
-  --sidebar: #191b1a;
-  --surface: #1c1e1d;
-  --surface-2: #222524;
-  --surface-3: #2a2d2b;
-  --line: #2c2f2d;
-  --line-strong: #3d413e;
-  --ink: #e8e7e2;
-  --ink-2: #b6b8b2;
-  --ink-3: #888b85;
-  --accent: #6fb3a1;
-  --accent-hover: #86c2b2;
-  --accent-ink: #0f1211;
-  --accent-soft: #1e2d29;
-  --accent-line: #2f4a43;
-  --focus: rgba(111, 179, 161, 0.32);
-  --ok: #79b98a;
-  --ok-soft: #1b2a1f;
-  --warn: #d6a95c;
-  --warn-soft: #2b2416;
-  --warn-line: #54452a;
-  --danger: #e08a74;
-  --danger-soft: #2e1d18;
-  --danger-line: #5b3328;
-  --series-1: #3f9e89;
-  --series-2: #c98034;
-  --series-3: #9a8cc8;
-  --series-baseline: #6c6f69;
-  --grid: #2a2d2b;
+  --bg: #0d1117;
+  --surface: #161d27;
+  --surface-2: #1a222e;
+  --surface-3: #212a38;
+  --line: #293342;
+  --line-strong: #3a4659;
+  --ink: #e6eaf0;
+  --ink-2: #aeb7c4;
+  --ink-3: #8a95a6;
+  --accent: #6b9bb8; /* steel blue */
+  --accent-hover: #85afc8;
+  --accent-ink: #0d1117;
+  --accent-soft: #182836;
+  --accent-line: #34526a;
+  --sage: #7fa995;
+  --focus: rgba(107, 155, 184, 0.32);
+  --ok: #7fa995;
+  --ok-soft: #16271f;
+  --warn: #c6a46a; /* muted amber */
+  --warn-soft: #2a2416;
+  --warn-line: #574a2c;
+  --danger: #d98c8c;
+  --danger-soft: #2c1a1d;
+  --danger-line: #5c3236;
+  --sidebar: #161d27;
+  --sidebar-ink: #e6eaf0;
+  --sidebar-ink-2: #8d98a8;
+  --sidebar-line: #293342;
+  --sidebar-accent: #c6a46a;
+  --pop-shadow: 0 14px 34px -10px rgba(0, 0, 0, 0.65);
+  --series-1: #6b9bb8;
+  --series-2: #c6a46a;
+  --series-3: #7fa995;
+  --series-baseline: #4a5568;
+  --grid: #212a38;
   --viewer: #000000;
-  --viewer-line: #2a2d2b;
-  --heat-0: #232624;
-  --heat-1: #1d3530;
-  --heat-2: #24534a;
-  --heat-3: #2f7466;
-  --heat-4: #4e9a88;
-  --heat-5: #8cc5b5;
-  --heat-ink-strong: #0f1211;
-  --div-neg-2: #d27a5c;
-  --div-neg-1: #55342a;
-  --div-mid: #2a2d2b;
-  --div-pos-1: #24514a;
-  --div-pos-2: #5fae9a;
+  --viewer-line: #293342;
+  --heat-0: #1a222e;
+  --heat-1: #1e3142;
+  --heat-2: #294860;
+  --heat-3: #3d6883;
+  --heat-4: #6b9bb8;
+  --heat-5: #aacade;
+  --heat-ink-strong: #0d1117;
+  /* Diverging agreement: steel blue = same direction, dusty mauve = opposite. */
+  --div-neg-2: #a58baf;
+  --div-neg-1: #3b3044;
+  --div-mid: #212a38;
+  --div-pos-1: #294860;
+  --div-pos-2: #6b9bb8;
 }
 
 @theme inline {
   --color-bg: var(--bg);
-  --color-sidebar: var(--sidebar);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
@@ -172,6 +202,7 @@
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
   --color-accent-line: var(--accent-line);
+  --color-sage: var(--sage);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
   --color-warn: var(--warn);
@@ -180,17 +211,23 @@
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-danger-line: var(--danger-line);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-ink: var(--sidebar-ink);
+  --color-sidebar-ink-2: var(--sidebar-ink-2);
+  --color-sidebar-line: var(--sidebar-line);
+  --color-sidebar-accent: var(--sidebar-accent);
   --color-viewer: var(--viewer);
   --color-viewer-line: var(--viewer-line);
+  --shadow-pop: var(--pop-shadow);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, monospace;
-  /* One restrained radius scale used everywhere. */
-  --radius-xs: 2px;
-  --radius-sm: 3px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 6px;
-  --radius-2xl: 6px;
+  /* Square corners throughout; the smallest radius only softens controls. */
+  --radius-xs: 0px;
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
 }
 
 html {
@@ -209,7 +246,53 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Small secondary label: sentence case, never uppercase. */
+/*
+ * The label voice is mono uppercase: captions above headings, fields and figures, table
+ * headers, navigation and the subtitle line under a name.
+ */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Mono annotation: indices ("01"), plate and well ids, coordinates, readouts. */
+.annot {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Subtitle line under a compound, gene or result name ("JNK INHIBITOR"). */
+.subline {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Headlines: most words dim, the words that matter bright. */
+.dim {
+  color: var(--ink-3);
+}
+
+/* Faint scanlines over imagery (never over text-only surfaces). */
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px);
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
 .text-label,
 .label-caps {
   font-size: 12px;
@@ -217,9 +300,21 @@ body {
   color: var(--ink-3);
 }
 
+/* Text link with an underline that strengthens on hover (used with an arrow icon). */
+.link-rule {
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+.link-rule:hover {
+  text-decoration-color: currentColor;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 ::selection {
@@ -233,11 +328,13 @@ body {
   [role="row"],
   tr,
   input,
-  select {
+  select,
+  svg {
     transition:
-      background-color 120ms ease,
-      border-color 120ms ease,
-      color 120ms ease,
-      box-shadow 120ms ease;
+      background-color 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease,
+      text-decoration-color 140ms ease,
+      transform 160ms ease;
   }
 }

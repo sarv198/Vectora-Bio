@@ -102,12 +102,12 @@ function GroupBars({ title, values }: { title: string; values: Record<string, nu
         {entries.map(([name, value]) => (
           <li key={name} className="grid grid-cols-[8rem_1fr_2.5rem] items-center gap-3">
             <span className="truncate text-ink-2">{name}</span>
-            <span className="h-1.5 rounded-full bg-surface-3">
+            <span className="h-1 bg-surface-3">
               <span
-                className="block h-full rounded-full"
+                className="block h-full"
                 style={{
                   width: `${(Math.abs(value) / max) * 100}%`,
-                  background: value >= 0 ? "var(--accent)" : "var(--div-neg-2)",
+                  background: value >= 0 ? "var(--sage)" : "var(--div-neg-2)",
                 }}
               />
             </span>
@@ -155,7 +155,7 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
   const selectedPrediction = response.predictions.find((p) => p.candidate_id === selected);
 
   return (
-    <div className="space-y-9">
+    <div className="space-y-12">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <QuerySummary
           label="Genetic perturbation"
@@ -180,7 +180,7 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
         />
         {signatureTop.length > 0 && (
           <div>
-            <p className="mb-1 text-[12px] text-ink-3">Largest changes vs. controls</p>
+            <p className="eyebrow mb-1">Largest changes vs. controls</p>
             <FeatureChangeList
               unit="MAD"
               features={signatureTop.slice(0, 5).map((f) => ({ feature: f.feature, label: f.label, value: f.value }))}
@@ -255,7 +255,7 @@ export function RescueResults({ response }: { response: AnalysisResponse }) {
                             >
                               {prediction.candidate_name ?? prediction.candidate_id}
                             </Link>
-                            <span className="block truncate text-[12px] text-ink-3">
+                            <span className="subline mt-0.5 block truncate">
                               {moa.length ? moa.join(", ") : "Mechanism not annotated"}
                             </span>
                           </td>

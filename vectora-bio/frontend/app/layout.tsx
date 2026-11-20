@@ -10,8 +10,9 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono-face" });
 
 export const metadata: Metadata = {
-  title: "CellScope",
-  description: "Phenotypic profiling for drug discovery: compare Cell Painting fingerprints of compounds and genes.",
+  title: { default: "vectora-bio", template: "%s · vectora-bio" },
+  description:
+    "Phenotypic drug discovery on Cell Painting: rank look-alike compounds, candidate targets, likely mechanisms and genetic rescuers.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -23,8 +24,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen font-sans antialiased">
         <div className="flex min-h-screen flex-col md:flex-row">
           <Sidebar />
-          <main className="min-w-0 flex-1 px-5 pt-6 pb-16 md:px-10 md:pt-9">
-            <div className="mx-auto max-w-[1180px]">{children}</div>
+          <main className="min-w-0 flex-1 px-5 pt-8 pb-24 sm:px-8 md:px-12 md:pt-12">
+            <div className="mx-auto max-w-[1200px]">{children}</div>
           </main>
         </div>
       </body>

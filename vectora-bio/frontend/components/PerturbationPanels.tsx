@@ -1,12 +1,13 @@
 "use client";
 
+import { Layers, ListOrdered } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import { ApiErrorNotice } from "@/components/ApiErrorNotice";
 import { DEFAULT_VIEWER, ImageSourceNote, ViewerControls, type ViewerSettings, WellView } from "@/components/CellImages";
 import { AgreementMap, FeatureChangeList, PhenotypeMap } from "@/components/PhenotypeMaps";
-import { Checkbox, InfoTip, LoadingState, Metrics, Notice, Section, Select } from "@/components/ui";
+import { Checkbox, DisclosureButton, InfoTip, LoadingState, Metrics, Notice, Section, Select } from "@/components/ui";
 import { api } from "@/lib/api";
 import { formatHours, formatScore } from "@/lib/format";
 import { useApiQuery } from "@/lib/hooks";
@@ -143,6 +144,7 @@ export function PerturbationInspector({
 }) {
   const { data, error, loading } = useOverview(target);
   const [settings, setSettings] = useState<ViewerSettings>(DEFAULT_VIEWER);
+  const [showChanges, setShowChanges] = useState(false);
 
   if (error) return <ApiErrorNotice error={error} />;
   if (loading || !data) return <LoadingState label="Loading phenotype" />;
@@ -169,22 +171,30 @@ export function PerturbationInspector({
           ]}
         />
         <div className="space-y-3">
-          <ViewerControls settings={settings} onChange={setSettings} />
+          <div className="flex flex-wrap items-center justify-between gap-3 border-y border-line py-2.5">
+            <ViewerControls settings={settings} onChange={setSettings} />
+            <ImageSourceNote />
+          </div>
           <PerturbationImages overview={data} settings={settings} />
         </div>
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-          <div>
-            <h3 className="mb-2 flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
-              Phenotype map <InfoTip>{MAP_HINT}</InfoTip>
-            </h3>
-            <PhenotypeMap cells={data.phenotype_map} />
-          </div>
-          <div>
-            <h3 className="mb-1 text-[13.5px] font-medium text-ink">Largest feature changes vs. controls</h3>
-            <FeatureChangeList features={data.top_features} />
-          </div>
+        <div className="max-w-xl">
+          <h3 className="eyebrow mb-3 flex items-center gap-1.5">
+            Phenotype map <InfoTip>{MAP_HINT}</InfoTip>
+          </h3>
+          <PhenotypeMap cells={data.phenotype_map} />
         </div>
-        <ImageSourceNote />
+        {data.top_features.length > 0 && (
+          <div className="space-y-3">
+            <DisclosureButton icon={ListOrdered} open={showChanges} onToggle={() => setShowChanges((v) => !v)}>
+              Largest feature changes vs. controls
+            </DisclosureButton>
+            {showChanges && (
+              <div className="max-w-2xl">
+                <FeatureChangeList features={data.top_features} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Section>
   );
@@ -194,12 +204,12 @@ function ColumnHeader({ overview, role }: { overview: ProfileOverview; role: str
   const weak = overview.strength_percentile !== null && overview.strength_percentile < 0.95;
   return (
     <div className="min-w-0">
-      <p className="text-[12px] text-ink-3">{role}</p>
-      <p className="flex flex-wrap items-baseline gap-x-2">
-        <Link href={detailHref(overview)} className="truncate text-[14px] font-semibold text-ink hover:text-accent">
+      <p className="eyebrow">{role}</p>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+        <Link href={detailHref(overview)} className="truncate text-[18px] font-normal tracking-[-0.02em] text-ink hover:text-accent">
           {perturbationTitle(overview)}
         </Link>
-        <span className="text-[12px] text-ink-3">
+        <span className="subline">
           {modalityLabel(overview)} · strength{" "}
           <span className={weak ? "text-warn" : ""}>{strengthText(overview.strength_percentile)}</span>
         </span>
@@ -215,12 +225,12 @@ function ColumnHeader({ overview, role }: { overview: ProfileOverview; role: str
 function ScoreReadout({ value, mode }: { value: number; mode: "similarity" | "reversal" }) {
   const clamped = Math.max(-1, Math.min(1, value));
   const half = Math.abs(clamped) * 50;
-  const fill = clamped >= 0 ? "var(--accent)" : "var(--div-neg-2)";
+  const fill = clamped >= 0 ? "var(--sage)" : "var(--div-neg-2)";
   const ends = mode === "reversal" ? ["Mimics", "Reverses"] : ["Opposite", "Identical"];
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border border-line bg-surface px-4 py-3">
+    <div className="flex flex-wrap items-end gap-x-12 gap-y-5 border-b border-line pb-6">
       <div>
-        <p className="flex items-center gap-1 text-[12.5px] font-medium text-ink-2">
+        <p className="eyebrow flex items-center gap-1">
           {mode === "reversal" ? "Reversal score" : "Cosine similarity"}
           <InfoTip>
             {mode === "reversal"
@@ -228,27 +238,31 @@ function ScoreReadout({ value, mode }: { value: number; mode: "similarity" | "re
               : "Cosine between the two consensus profiles: 1 identical, 0 unrelated, -1 opposite. Same value as the table."}
           </InfoTip>
         </p>
-        <p className={`tabular text-[30px] leading-none font-semibold ${clamped >= 0 ? "text-accent" : "text-ink"}`}>
+        <p className={`tabular mt-2 text-[64px] leading-[0.9] font-light tracking-[-0.05em] ${clamped >= 0 ? "text-accent" : "text-ink"}`}>
           {formatScore(value, 2)}
         </p>
       </div>
-      <div className="w-full max-w-[22rem] min-w-[14rem] flex-1">
-        <div className="relative h-2.5 rounded-full bg-surface-3" aria-hidden>
-          <span className="absolute top-[-3px] bottom-[-3px] left-1/2 w-px bg-line-strong" />
+      <div className="w-full max-w-[26rem] min-w-[14rem] flex-1 pb-1">
+        {/* Schematic scale: a hairline with dot ends, the score as a filled run and a marker. */}
+        <div className="relative h-4" aria-hidden>
+          <span className="absolute top-1/2 right-0 left-0 h-px bg-line-strong" />
+          <span className="absolute top-1/2 left-0 h-[5px] w-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-line-strong" />
+          <span className="absolute top-1/2 right-0 h-[5px] w-[5px] translate-x-1/2 -translate-y-1/2 rounded-full bg-line-strong" />
+          <span className="absolute top-0 bottom-0 left-1/2 w-px bg-line-strong" />
           <span
-            className="absolute top-0 bottom-0 rounded-full"
+            className="absolute top-1/2 h-[3px] -translate-y-1/2"
             style={{ width: `${half}%`, left: clamped >= 0 ? "50%" : undefined, right: clamped < 0 ? "50%" : undefined, background: fill }}
           />
           <span
-            className="absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink"
+            className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg bg-ink"
             style={{ left: `${(clamped + 1) * 50}%` }}
           />
         </div>
-        <div className="mt-1.5 grid grid-cols-3 text-[11.5px] text-ink-3">
+        <div className="annot mt-2 grid grid-cols-3">
           <span>-1 {ends[0]}</span>
           <span className="text-center">0</span>
           <span className="text-right">
-            {ends[1]} 1
+            {ends[1]} +1
           </span>
         </div>
       </div>
@@ -261,7 +275,7 @@ function TopChanges({ overview }: { overview: ProfileOverview }) {
   if (overview.top_features.length === 0) return null;
   return (
     <div className="mt-4">
-      <h4 className="mb-0.5 text-[12.5px] font-medium text-ink-2">Largest changes vs. control</h4>
+      <h4 className="eyebrow mb-1">Largest changes vs. control</h4>
       <FeatureChangeList features={overview.top_features.slice(0, 5)} />
     </div>
   );
@@ -301,6 +315,7 @@ export function ComparisonPanel({
   );
   const [settings, setSettings] = useState<ViewerSettings>(DEFAULT_VIEWER);
   const [showControls, setShowControls] = useState(mode === "reversal");
+  const [showMaps, setShowMaps] = useState(false);
 
   const error = a.error ?? b.error ?? comparison.error;
   if (error) return <ApiErrorNotice error={error} />;
@@ -312,9 +327,12 @@ export function ComparisonPanel({
     <Section title={title ?? `${perturbationTitle(a.data)} compared with ${perturbationTitle(b.data)}`}>
       <div className="space-y-6">
         {cosine !== undefined && <ScoreReadout value={mode === "reversal" ? -cosine : cosine} mode={mode} />}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-y border-line py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
           <ViewerControls settings={settings} onChange={setSettings} />
-          <Checkbox label="Show same-plate controls" checked={showControls} onChange={(e) => setShowControls(e.target.checked)} />
+          <div className="flex items-center gap-4">
+            <Checkbox label="Same-plate controls" checked={showControls} onChange={(e) => setShowControls(e.target.checked)} />
+            <ImageSourceNote />
+          </div>
         </div>
         <div className="grid gap-6 md:grid-cols-2">
           {[
@@ -331,28 +349,34 @@ export function ComparisonPanel({
             />
           ))}
         </div>
-        <div className="grid gap-8 lg:grid-cols-3">
-          {[a.data, b.data].map((overview, index) => (
-            <div key={`${index}-${overview.perturbation_id}`} className="min-w-0">
-              <h3 className="mb-2 flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
-                {perturbationTitle(overview)}: phenotype map
-                {index === 0 && <InfoTip>{MAP_HINT}</InfoTip>}
-              </h3>
-              <PhenotypeMap cells={overview.phenotype_map} />
-              <TopChanges overview={overview} />
-            </div>
-          ))}
-          {comparison.data && (
-            <div>
-              <h3 className="mb-2 flex items-center gap-1.5 text-[13.5px] font-medium text-ink">
-                {mode === "reversal" ? "Where the compound reverses the change" : "Where the profiles agree"}
-                <InfoTip>{AGREEMENT_HINT}</InfoTip>
-              </h3>
-              <AgreementMap cells={comparison.data.cells} opposition={mode === "reversal"} />
+        {comparison.data && (
+          <div className="max-w-xl">
+            <h3 className="eyebrow mb-3 flex items-center gap-1.5">
+              {mode === "reversal" ? "Where the compound reverses the change" : "Where the profiles agree"}
+              <InfoTip>{AGREEMENT_HINT}</InfoTip>
+            </h3>
+            <AgreementMap cells={comparison.data.cells} opposition={mode === "reversal"} />
+          </div>
+        )}
+        <div className="space-y-4">
+          <DisclosureButton icon={Layers} open={showMaps} onToggle={() => setShowMaps((v) => !v)}>
+            Phenotype maps and top changes
+          </DisclosureButton>
+          {showMaps && (
+            <div className="grid gap-8 md:grid-cols-2">
+              {[a.data, b.data].map((overview, index) => (
+                <div key={`${index}-${overview.perturbation_id}`} className="min-w-0">
+                  <h3 className="eyebrow mb-3 flex items-center gap-1.5">
+                    {perturbationTitle(overview)}: phenotype map
+                    {index === 0 && <InfoTip>{MAP_HINT}</InfoTip>}
+                  </h3>
+                  <PhenotypeMap cells={overview.phenotype_map} />
+                  <TopChanges overview={overview} />
+                </div>
+              ))}
             </div>
           )}
         </div>
-        <ImageSourceNote />
       </div>
     </Section>
   );

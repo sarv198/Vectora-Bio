@@ -56,7 +56,7 @@ export function SimilarCompoundsPanel({
                   <span className="tabular shrink-0 text-[13px] text-ink">{formatScore(prediction.score, 2)}</span>
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-3">
-                  <p className="truncate text-[12px] text-ink-3">{moa.length ? moa.join(", ") : "Mechanism not annotated"}</p>
+                  <p className="subline mt-0.5 truncate">{moa.length ? moa.join(", ") : "Mechanism not annotated"}</p>
                   <span className="flex shrink-0 items-center gap-2 text-[11.5px] text-ink-3">
                     {topPercent(info.score_percentile)}
                     <ScoreBar value={prediction.score} width={48} />

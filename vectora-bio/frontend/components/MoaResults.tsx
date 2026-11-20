@@ -6,6 +6,7 @@ import { Fragment, useState } from "react";
 import { ComparisonPanel } from "@/components/PerturbationPanels";
 import { Em, Findings, QuerySummary } from "@/components/QuerySummary";
 import {
+  DisclosureButton,
   EmptyState,
   InfoTip,
   Notice,
@@ -29,6 +30,8 @@ function percent(value: number | null | undefined): string {
   return value === null || value === undefined ? "n/a" : `${Math.round(value * 100)}%`;
 }
 
+const NEIGHBORS_SHOWN = 5;
+
 const CONFIDENCE_HINT =
   "How often calls with this vote share were correct when known compounds were hidden and re-predicted (isotonic calibration). Low values are expected: many mechanisms in this dataset have a single compound.";
 
@@ -48,9 +51,12 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
   const topInfo = top?.candidate_annotations as unknown as MoaAnnotations | undefined;
   const selectedNeighbor = neighbors.find((n) => n.compound_id === selected);
   const { summary } = response;
+  // All neighbours vote on the mechanism; the table lists the closest five unless asked for more.
+  const [showAllNeighbors, setShowAllNeighbors] = useState(false);
+  const shownNeighbors = showAllNeighbors ? neighbors : neighbors.slice(0, NEIGHBORS_SHOWN);
 
   return (
-    <div className="space-y-9">
+    <div className="space-y-12">
       <QuerySummary
         label="Query compound"
         name={response.query_name ?? response.query_id}
@@ -145,7 +151,7 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
                           </td>
                           <td className={`${TD} text-ink-2`}>
                             {info.n_supporting} of {info.n_annotated_neighbors} neighbours
-                            <span className="block text-[12px] text-ink-3">
+                            <span className="subline mt-0.5 block">
                               mean cosine {formatScore(info.mean_similarity, 2)}
                             </span>
                           </td>
@@ -189,7 +195,10 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
       )}
 
       {neighbors.length > 0 && (
-        <Section title="Nearest compounds" description="Select a row to compare cells.">
+        <Section
+          title="Nearest compounds"
+          description={`The ${Math.min(NEIGHBORS_SHOWN, neighbors.length)} closest of the ${neighbors.length} that vote. Select a row to compare cells.`}
+        >
           <TableFrame>
             <table className={TABLE}>
               <thead className={THEAD}>
@@ -200,7 +209,7 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
                 </tr>
               </thead>
               <tbody>
-                {neighbors.map((neighbor) => (
+                {shownNeighbors.map((neighbor) => (
                   <tr
                     key={neighbor.compound_id}
                     {...selectableRow(selected === neighbor.compound_id, () => setSelected(neighbor.compound_id))}
@@ -225,6 +234,13 @@ export function MoaResults({ response }: { response: AnalysisResponse }) {
               </tbody>
             </table>
           </TableFrame>
+          {neighbors.length > NEIGHBORS_SHOWN && (
+            <div className="mt-3">
+              <DisclosureButton open={showAllNeighbors} onToggle={() => setShowAllNeighbors((v) => !v)}>
+                {showAllNeighbors ? `Show the closest ${NEIGHBORS_SHOWN}` : `Show all ${neighbors.length} voting neighbours`}
+              </DisclosureButton>
+            </div>
+          )}
         </Section>
       )}
 

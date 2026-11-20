@@ -28,11 +28,11 @@ function heatStep(value: number): number {
 
 /** Cosine bins: strongly opposite, opposite, unrelated, same, strongly same. */
 const DIV_STEPS = [
-  { max: -0.5, color: "var(--div-neg-2)", ink: "#ffffff", label: "< -0.5" },
+  { max: -0.5, color: "var(--div-neg-2)", ink: "var(--heat-ink-strong)", label: "< -0.5" },
   { max: -0.2, color: "var(--div-neg-1)", ink: "var(--ink)", label: "-0.5" },
   { max: 0.2, color: "var(--div-mid)", ink: "var(--ink-2)", label: "0" },
   { max: 0.5, color: "var(--div-pos-1)", ink: "var(--ink)", label: "0.5" },
-  { max: Infinity, color: "var(--div-pos-2)", ink: "#ffffff", label: "> 0.5" },
+  { max: Infinity, color: "var(--div-pos-2)", ink: "var(--heat-ink-strong)", label: "> 0.5" },
 ];
 function divStep(value: number) {
   return DIV_STEPS.find((step) => value < step.max) ?? DIV_STEPS[DIV_STEPS.length - 1];
@@ -130,7 +130,7 @@ export function PhenotypeMap({ cells }: { cells: PhenotypeMapCell[] }) {
           const step = heatStep(cell.rms);
           return {
             background: `var(--heat-${step})`,
-            color: step >= 3 ? "var(--heat-ink-strong)" : "var(--ink-2)",
+            color: step >= 4 ? "var(--heat-ink-strong)" : "var(--ink)",
             text: cell.rms.toFixed(1),
           };
         }}
@@ -200,10 +200,10 @@ export function FeatureChangeList({ features, unit = "z" }: { features: FeatureC
             <span className="truncate text-ink-2" title={feature.feature}>
               {feature.label}
             </span>
-            <span className="relative h-1.5 rounded-full bg-surface-3" aria-hidden>
+            <span className="relative h-1 bg-surface-3" aria-hidden>
               <span className="absolute top-[-2px] bottom-[-2px] left-1/2 w-px bg-line-strong" />
               <span
-                className="absolute top-0 bottom-0 rounded-full"
+                className="absolute top-0 bottom-0"
                 style={{
                   width,
                   left: positive ? "50%" : undefined,

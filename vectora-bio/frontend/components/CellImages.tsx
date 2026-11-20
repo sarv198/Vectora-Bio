@@ -1,9 +1,9 @@
 "use client";
 
-import { ImageOff, Loader2, Maximize2 } from "lucide-react";
+import { Clock, ImageOff, Loader2, Maximize2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { InfoTip, Segmented, Select } from "@/components/ui";
+import { InfoTip, MetaLine, Segmented, Select } from "@/components/ui";
 import { wellImageUrl } from "@/lib/api";
 
 /** Stain channels in display order, with the pseudo-colours the backend blends them in. */
@@ -29,6 +29,9 @@ export interface ViewerSettings {
 
 export const DEFAULT_VIEWER: ViewerSettings = { field: 5, channels: ["DNA", "ER", "Mito"], mode: "composite" };
 
+/** Size of the per-stain tiles in the Channels view (the API pre-renders tiles at this size). */
+export const CHANNEL_TILE_SIZE = 360;
+
 /** Stain channels, field of view and display mode, shared by every image in a view. */
 export function ViewerControls({
   settings,
@@ -44,7 +47,7 @@ export function ViewerControls({
   };
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-      <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Stain channels">
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1" role="group" aria-label="Stain channels">
         {CHANNELS.map((channel) => {
           const on = settings.channels.includes(channel.key);
           return (
@@ -54,8 +57,8 @@ export function ViewerControls({
               aria-pressed={on}
               title={channel.stain}
               onClick={() => toggle(channel.key)}
-              className={`flex h-7 items-center gap-1.5 rounded-md border px-2 text-[12.5px] ${
-                on ? "border-line-strong bg-surface text-ink" : "border-transparent text-ink-3 hover:text-ink"
+              className={`flex h-7 items-center gap-1.5 border-b text-[12.5px] ${
+                on ? "border-ink text-ink" : "border-transparent text-ink-3 hover:text-ink"
               }`}
             >
               <span
@@ -71,12 +74,12 @@ export function ViewerControls({
           );
         })}
       </div>
-      <label className="flex items-center gap-2 text-[12.5px] text-ink-3">
+      <label className="eyebrow flex items-center gap-2">
         Field
         <Select
           value={settings.field}
           onChange={(e) => onChange({ ...settings, field: Number(e.target.value) })}
-          className="h-7 w-[4.5rem] text-[12.5px]"
+          className="h-8 w-[5rem] text-[12.5px] tracking-normal normal-case"
         >
           {Array.from({ length: FIELD_COUNT }, (_, i) => i + 1).map((field) => (
             <option key={field} value={field}>
@@ -91,9 +94,15 @@ export function ViewerControls({
         onChange={(mode) => onChange({ ...settings, mode })}
         options={[
           { value: "composite", label: "Composite" },
-          { value: "split", label: "Channels" },
+          { value: "split", label: "Channels", title: "One image per stain. Slower to load the first time." },
         ]}
       />
+      {settings.mode === "split" && (
+        <p className="flex items-center gap-1.5 text-[12px] text-ink-3" role="note">
+          <Clock className="h-3.5 w-3.5 shrink-0 text-warn" strokeWidth={1.9} aria-hidden />
+          One image per stain: the first view can take up to a minute.
+        </p>
+      )}
     </div>
   );
 }
@@ -127,10 +136,14 @@ export function CellImage({
   const src = wellImageUrl({ plate, well, field, channels, size, ref: reference, grayscale });
   const [state, setState] = useState<LoadState>("loading");
   const [message, setMessage] = useState<string | null>(null);
+  const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     setState("loading");
     setMessage(null);
+    setSlow(false);
+    const timer = window.setTimeout(() => setSlow(true), 8000);
+    return () => window.clearTimeout(timer);
   }, [src]);
 
   const onError = () => {
@@ -143,20 +156,24 @@ export function CellImage({
 
   return (
     <figure className="min-w-0">
-      <div className="group relative aspect-square w-full overflow-hidden rounded-md bg-viewer">
+      <div className="group scanlines relative aspect-square w-full overflow-hidden bg-viewer">
         {/* eslint-disable-next-line @next/next/no-img-element -- rendered by the API, not a static asset */}
         <img
           key={src}
           src={src}
           alt={`${caption}: ${grayscale ? channels[0] : channels.join(" + ")}, plate ${plate} well ${well} field ${field}`}
+          loading="lazy"
+          decoding="async"
           className={`h-full w-full object-contain ${state === "loaded" ? "" : "invisible"}`}
           onLoad={() => setState("loaded")}
           onError={onError}
         />
         {state === "loading" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[12px] text-white/55">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-[12px] text-white/60">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            {!compact && <span>Loading field from the Cell Painting Gallery</span>}
+            {!compact && (
+              <span>{slow ? "Still loading: the server fetches each image the first time it is viewed." : "Loading image"}</span>
+            )}
           </div>
         )}
         {state === "error" && (
@@ -165,7 +182,8 @@ export function CellImage({
             <span>{message ?? "Image unavailable."}</span>
           </div>
         )}
-        <span className="pointer-events-none absolute top-2 left-2 text-[11.5px] font-medium text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
+        <CornerTicks />
+        <span className="pointer-events-none absolute top-2.5 left-3 font-mono text-[10.5px] tracking-[0.06em] text-white/90 uppercase [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
           {caption}
         </span>
         {state === "loaded" && (
@@ -183,7 +201,7 @@ export function CellImage({
                 target="_blank"
                 rel="noreferrer"
                 title="Open at full resolution (1080 px)"
-                className="absolute top-1.5 right-1.5 rounded p-1 text-white/0 group-hover:bg-black/50 group-hover:text-white/85 focus-visible:text-white/85"
+                className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/0 text-white/0 group-hover:border-white/50 group-hover:bg-black/40 group-hover:text-white/90 focus-visible:border-white/50 focus-visible:text-white/90"
               >
                 <Maximize2 className="h-3.5 w-3.5" aria-hidden />
                 <span className="sr-only">Open full resolution</span>
@@ -192,7 +210,7 @@ export function CellImage({
           </>
         )}
       </div>
-      {sublabel && <figcaption className="mt-1.5 truncate text-[12px] text-ink-3">{sublabel}</figcaption>}
+      {sublabel && <figcaption className="subline mt-2 truncate">{sublabel}</figcaption>}
     </figure>
   );
 }
@@ -238,25 +256,40 @@ export function WellView({
             channels={[channel]}
             reference={reference}
             caption={channel}
-            size={360}
+            size={CHANNEL_TILE_SIZE}
             grayscale
             compact
           />
         ))}
       </div>
-      {sublabel && <p className="mt-1.5 truncate text-[12px] text-ink-3">{sublabel}</p>}
+      {sublabel && <p className="subline mt-2 truncate">{sublabel}</p>}
     </div>
   );
 }
 
+/** Where the images come from, as a small label with the details in a tooltip. */
 export function ImageSourceNote() {
   return (
-    <p className="flex items-center gap-1.5 text-[12px] text-ink-3">
-      JUMP pilot CPJUMP1 · U2OS · 20x
+    <p className="flex items-center gap-1.5 whitespace-nowrap">
+      <MetaLine items={["CPJUMP1", "U2OS", "20X"]} />
       <InfoTip>
-        Raw fields (0.6 µm per pixel), loaded on first view and cached locally. Each image uses the display range of a
-        negative-control well on the same plate, so brightness differences are real. Background is set per image.
+        JUMP Cell Painting pilot. Raw fields (0.6 µm per pixel), loaded on first view and cached. Each image uses the
+        display range of a negative-control well on the same plate, so brightness differences are real. Background is
+        set per image.
       </InfoTip>
     </p>
+  );
+}
+
+/** Thin L-shaped ticks in the corners of a microscopy frame, like a viewfinder. */
+function CornerTicks() {
+  const tick = "pointer-events-none absolute z-[1] h-3 w-3 border-white/45";
+  return (
+    <>
+      <span className={`${tick} top-1.5 left-1.5 border-t border-l`} aria-hidden />
+      <span className={`${tick} top-1.5 right-1.5 border-t border-r`} aria-hidden />
+      <span className={`${tick} bottom-1.5 left-1.5 border-b border-l`} aria-hidden />
+      <span className={`${tick} right-1.5 bottom-1.5 border-r border-b`} aria-hidden />
+    </>
   );
 }

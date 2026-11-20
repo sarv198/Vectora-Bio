@@ -23,12 +23,15 @@ USER user
 #                     cleared when the service restarts (images are simply fetched again).
 #   PERSIST_ANALYSIS_RUNS=false   do not log every visitor's query to the database.
 #   EVALUATION_RUNS_ENABLED=false hide "Run benchmarks"; stored results stay viewable.
+#   MALLOC_ARENA_MAX=2            stop each worker thread keeping its own pool of freed
+#                                 memory (matters on a 512 MB instance).
 ENV DATA_PROCESSED_DIR=/app/data/processed \
     DATA_RAW_DIR=/tmp/cellscope-raw \
     ENVIRONMENT=production \
     PERSIST_ANALYSIS_RUNS=false \
     EVALUATION_RUNS_ENABLED=false \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    MALLOC_ARENA_MAX=2
 
 WORKDIR /app/backend
 # Render sets PORT (10000 by default).
